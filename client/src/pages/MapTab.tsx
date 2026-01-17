@@ -5,6 +5,7 @@ import NotificationModal from "@/components/NotificationModal";
 import InterceptModal from "@/components/InterceptModal";
 import Joystick from "@/components/Joystick";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Coordinates, getSnailPosition, isInInterceptRange } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
@@ -14,6 +15,8 @@ import { useNotifications } from "@/hooks/useNotifications";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
 import { INTERCEPT_RANGE_METERS, SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
+
+const LAYER_VISIBILITY_STORAGE_KEY = "map-layer-visibility";
 
 export default function MapTab() {
   const { user } = useAuth();
@@ -45,6 +48,73 @@ export default function MapTab() {
     }
     return map;
   }, [friends, user?.id]);
+
+  const friendIds = useMemo(() => Array.from(friendUsernames.keys()), [friendUsernames]);
+
+  const loadLayerVisibility = () => {
+    try {
+      const stored = localStorage.getItem(LAYER_VISIBILITY_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          homeBase: parsed.homeBase ?? true,
+          incomingSnails: parsed.incomingSnails ?? true,
+          outgoingSnails: new Map<string, boolean>(
+            Object.entries(parsed.outgoingSnails || {})
+          ),
+        };
+      }
+    } catch (e) {
+      console.error("Failed to load layer visibility", e);
+    }
+    return {
+      homeBase: true,
+      incomingSnails: true,
+      outgoingSnails: new Map<string, boolean>(),
+    };
+  };
+
+  const saveLayerVisibility = (visibility: {
+    homeBase: boolean;
+    incomingSnails: boolean;
+    outgoingSnails: Map<string, boolean>;
+  }) => {
+    try {
+      localStorage.setItem(
+        LAYER_VISIBILITY_STORAGE_KEY,
+        JSON.stringify({
+          homeBase: visibility.homeBase,
+          incomingSnails: visibility.incomingSnails,
+          outgoingSnails: Object.fromEntries(visibility.outgoingSnails),
+        })
+      );
+    } catch (e) {
+      console.error("Failed to save layer visibility", e);
+    }
+  };
+
+  const [layerVisibility, setLayerVisibility] = useState(loadLayerVisibility);
+  const [layerPanelExpanded, setLayerPanelExpanded] = useState(false);
+  const [outgoingSnailsExpanded, setOutgoingSnailsExpanded] = useState(false);
+
+  useEffect(() => {
+    saveLayerVisibility(layerVisibility);
+  }, [layerVisibility]);
+
+  useEffect(() => {
+    setLayerVisibility((prev) => {
+      const newOutgoingSnails = new Map(prev.outgoingSnails);
+      for (const friendId of friendIds) {
+        if (!newOutgoingSnails.has(friendId)) {
+          newOutgoingSnails.set(friendId, true);
+        }
+      }
+      return {
+        ...prev,
+        outgoingSnails: newOutgoingSnails,
+      };
+    });
+  }, [friendIds]);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const initialCenter = useRef<[number, number] | undefined>(undefined);
@@ -535,6 +605,18 @@ export default function MapTab() {
 
     if (!source || !labelSource) return;
 
+    if (!layerVisibility.homeBase) {
+      source.setData({
+        type: "FeatureCollection",
+        features: [],
+      });
+      labelSource.setData({
+        type: "FeatureCollection",
+        features: [],
+      });
+      return;
+    }
+
     const center = parseSupabasePoint(profile?.home_location);
     if (!center) {
       source.setData({
@@ -566,7 +648,7 @@ export default function MapTab() {
         },
       ],
     });
-  }, [profile?.home_location, mapLoaded]);
+  }, [profile?.home_location, mapLoaded, layerVisibility.homeBase]);
 
   useEffect(() => {
     if (!mapRef.current || !mapLoaded) return;
@@ -584,6 +666,9 @@ export default function MapTab() {
     const seenLocations = new Set<string>();
 
     for (const snail of outgoingSnails) {
+      const isVisible = layerVisibility.outgoingSnails.get(snail.target_id) ?? true;
+      if (!isVisible) continue;
+
       const homeLocationRaw = friendHomeLocations.get(snail.target_id);
       const homeLocation = parseSupabasePoint(homeLocationRaw);
       if (!homeLocation) continue;
@@ -614,7 +699,7 @@ export default function MapTab() {
       type: "FeatureCollection",
       features: labelFeatures,
     });
-  }, [outgoingSnails, friendHomeLocations, friendUsernames, mapLoaded]);
+  }, [outgoingSnails, friendHomeLocations, friendUsernames, mapLoaded, layerVisibility.outgoingSnails]);
 
   // Update snail positions and check for intercept opportunities
   useEffect(() => {
@@ -653,6 +738,14 @@ export default function MapTab() {
       color: string
     ) => {
       for (const snail of snailsToPlot) {
+        if (direction === "incoming" && !layerVisibility.incomingSnails) {
+          continue;
+        }
+        if (direction === "outgoing") {
+          const isVisible = layerVisibility.outgoingSnails.get(snail.target_id) ?? true;
+          if (!isVisible) continue;
+        }
+
         const snailPos = getSnailPosition(
           snail.path_json,
           new Date(snail.start_time),
@@ -740,7 +833,7 @@ export default function MapTab() {
         sessionStorage.removeItem(SNAIL_FOCUS_STORAGE_KEY);
       }
     }
-  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded, tick]);
+  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded, tick, layerVisibility.incomingSnails, layerVisibility.outgoingSnails]);
 
   const SINGAPORE_CENTER: [number, number] = [103.8198, 1.3521];
   const SINGAPORE_OVERVIEW_ZOOM = 10.5;
@@ -768,6 +861,112 @@ export default function MapTab() {
           <p className="text-sm">Acquiring GPS...</p>
         </div>
       )}
+
+      {/* Layer Controls */}
+      <div className="absolute top-4 right-4 flex flex-col items-end gap-2">
+        <Button
+          onClick={() => setLayerPanelExpanded(!layerPanelExpanded)}
+          variant="outline"
+          size="sm"
+          className="bg-card shadow-md"
+        >
+          {layerPanelExpanded ? "Hide Layers" : "Show Layers"}
+        </Button>
+        
+        {layerPanelExpanded && (
+          <div className="bg-card text-card-foreground rounded-lg shadow-lg p-4 min-w-[220px] max-h-[70vh] overflow-y-auto">
+            <h3 className="font-semibold mb-3 text-sm">Map Layers</h3>
+            
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="layer-home-base"
+                  checked={layerVisibility.homeBase}
+                  onCheckedChange={(checked) =>
+                    setLayerVisibility((prev) => ({
+                      ...prev,
+                      homeBase: checked === true,
+                    }))
+                  }
+                />
+                <label
+                  htmlFor="layer-home-base"
+                  className="text-sm cursor-pointer select-none"
+                >
+                  Your Home Base
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="layer-incoming-snails"
+                  checked={layerVisibility.incomingSnails}
+                  onCheckedChange={(checked) =>
+                    setLayerVisibility((prev) => ({
+                      ...prev,
+                      incomingSnails: checked === true,
+                    }))
+                  }
+                />
+                <label
+                  htmlFor="layer-incoming-snails"
+                  className="text-sm cursor-pointer select-none"
+                >
+                  Incoming Snails
+                </label>
+              </div>
+
+              <div className="space-y-2">
+                <Button
+                  onClick={() => setOutgoingSnailsExpanded(!outgoingSnailsExpanded)}
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start h-auto py-1 px-2 text-sm font-normal"
+                >
+                  <span className="mr-1">{outgoingSnailsExpanded ? "▼" : "▶"}</span>
+                  Outgoing Snails
+                </Button>
+                
+                {outgoingSnailsExpanded && (
+                  <div className="ml-4 space-y-2">
+                    {friendIds.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No friends yet</p>
+                    ) : (
+                      friendIds.map((friendId) => {
+                        const friendName = friendUsernames.get(friendId) ?? "Unknown";
+                        return (
+                          <div key={friendId} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`layer-friend-${friendId}`}
+                              checked={layerVisibility.outgoingSnails.get(friendId) ?? true}
+                              onCheckedChange={(checked) =>
+                                setLayerVisibility((prev) => {
+                                  const newOutgoingSnails = new Map(prev.outgoingSnails);
+                                  newOutgoingSnails.set(friendId, checked === true);
+                                  return {
+                                    ...prev,
+                                    outgoingSnails: newOutgoingSnails,
+                                  };
+                                })
+                              }
+                            />
+                            <label
+                              htmlFor={`layer-friend-${friendId}`}
+                              className="text-xs cursor-pointer select-none"
+                            >
+                              {friendName}
+                            </label>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Demo mode controls */}
       <div className="absolute bottom-24 right-6 pointer-events-none flex flex-col items-end gap-2">
