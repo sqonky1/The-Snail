@@ -111,27 +111,59 @@ export default function MapTab() {
     mapRef.current = map;
     setMapLoaded(true);
 
-    map.addSource("user-position", {
+    map.addSource("home-base-zone", {
       type: "geojson",
       data: {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "Point",
-          coordinates: [0, 0],
-        },
+        type: "FeatureCollection",
+        features: [],
       },
     });
 
     map.addLayer({
-      id: "user-marker",
-      type: "circle",
-      source: "user-position",
+      id: "home-base-fill",
+      type: "fill",
+      source: "home-base-zone",
       paint: {
-        "circle-radius": 12,
-        "circle-color": "#4285F4",
-        "circle-stroke-width": 3,
-        "circle-stroke-color": "#FFFFFF",
+        "fill-color": "#3B82F6",
+        "fill-opacity": 0.3,
+      },
+    });
+
+    map.addLayer({
+      id: "home-base-border",
+      type: "line",
+      source: "home-base-zone",
+      paint: {
+        "line-color": "#3B82F6",
+        "line-width": 1,
+      },
+    });
+
+    map.addSource("friend-home-zones", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    map.addLayer({
+      id: "friend-home-fill",
+      type: "fill",
+      source: "friend-home-zones",
+      paint: {
+        "fill-color": "#A855F7",
+        "fill-opacity": 0.3,
+      },
+    });
+
+    map.addLayer({
+      id: "friend-home-border",
+      type: "line",
+      source: "friend-home-zones",
+      paint: {
+        "line-color": "#A855F7",
+        "line-width": 1,
       },
     });
 
@@ -152,7 +184,7 @@ export default function MapTab() {
       filter: ["==", ["get", "trailType"], "past"],
       paint: {
         "line-color": ["get", "color"],
-        "line-width": 3,
+        "line-width": 4,
       },
     });
 
@@ -164,7 +196,7 @@ export default function MapTab() {
       filter: ["==", ["get", "trailType"], "future"],
       paint: {
         "line-color": ["get", "color"],
-        "line-width": 3,
+        "line-width": 2,
         "line-dasharray": [2, 2],
       },
     });
@@ -212,39 +244,27 @@ export default function MapTab() {
       },
     });
 
-    map.addSource("home-base-zone", {
+    map.addSource("user-position", {
       type: "geojson",
       data: {
-        type: "FeatureCollection",
-        features: [],
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Point",
+          coordinates: [0, 0],
+        },
       },
     });
 
     map.addLayer({
-      id: "home-base-fill",
-      type: "fill",
-      source: "home-base-zone",
+      id: "user-marker",
+      type: "circle",
+      source: "user-position",
       paint: {
-        "fill-color": "#3B82F6",
-        "fill-opacity": 0.15,
-      },
-    });
-
-    map.addSource("friend-home-zones", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: [],
-      },
-    });
-
-    map.addLayer({
-      id: "friend-home-fill",
-      type: "fill",
-      source: "friend-home-zones",
-      paint: {
-        "fill-color": "#A855F7",
-        "fill-opacity": 0.15,
+        "circle-radius": 12,
+        "circle-color": "#4285F4",
+        "circle-stroke-width": 3,
+        "circle-stroke-color": "#FFFFFF",
       },
     });
   };
