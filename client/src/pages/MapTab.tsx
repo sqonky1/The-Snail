@@ -1,25 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
-import EconomyEventModal from "@/components/EconomyEventModal";
+import NotificationModal from "@/components/NotificationModal";
 import Joystick from "@/components/Joystick";
 import { Button } from "@/components/ui/button";
 import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useSnails, type EconomyEvent } from "@/hooks/useSnails";
+import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
 import { useFriendships } from "@/hooks/useFriendships";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
 import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, outgoingSnails, economyEvents, clearEconomyEvents } =
-    useSnails();
+  const { incomingSnails, outgoingSnails } = useSnails();
   const { profile, refresh: refreshProfile } = useProfile();
   const { friends } = useFriendships();
-  const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const { newNotification, clearNewNotification, markAsRead } = useNotifications();
 
   const friendHomeLocations = useMemo(() => {
     const map = new Map<string, unknown>();
@@ -42,6 +42,15 @@ export default function MapTab() {
   );
   const [isDemoMode, setIsDemoMode] = useState(false);
   const joystickVelocityRef = useRef({ x: 0, y: 0 });
+  const [tick, setTick] = useState(0);
+
+  // Timer to update snail positions every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Initialize GPS tracking
   useEffect(() => {
@@ -501,22 +510,15 @@ export default function MapTab() {
         sessionStorage.removeItem(SNAIL_FOCUS_STORAGE_KEY);
       }
     }
-  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded]);
+  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded, tick]);
 
   const SINGAPORE_CENTER: [number, number] = [103.8198, 1.3521];
   const SINGAPORE_OVERVIEW_ZOOM = 10.5;
 
-  const currentEvent: EconomyEvent | null =
-    economyEvents.length > 0 && currentEventIndex < economyEvents.length
-      ? economyEvents[currentEventIndex]
-      : null;
-
-  const handleEventClose = () => {
-    if (currentEventIndex < economyEvents.length - 1) {
-      setCurrentEventIndex((i) => i + 1);
-    } else {
-      clearEconomyEvents();
-      setCurrentEventIndex(0);
+  const handleNotificationClose = async () => {
+    if (newNotification) {
+      await markAsRead(newNotification.id);
+      clearNewNotification();
       refreshProfile();
     }
   };
@@ -554,7 +556,7 @@ export default function MapTab() {
         )}
       </div>
 
-      <EconomyEventModal event={currentEvent} onClose={handleEventClose} />
+      <NotificationModal notification={newNotification} onClose={handleNotificationClose} />
 
       <BottomNav activeTab="map" />
     </div>

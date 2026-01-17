@@ -8,6 +8,7 @@ export type Json =
 
 export type SnailStatus = "moving" | "intercepted" | "arrived";
 export type FriendshipStatus = "requested" | "friends";
+export type NotificationType = "arrival_success" | "arrival_invaded" | "intercept";
 
 export interface Database {
   public: {
@@ -125,6 +126,40 @@ export interface Database {
           }
         ];
       };
+      notifications: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: NotificationType;
+          data: Json;
+          read: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          type: NotificationType;
+          data?: Json;
+          read?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          type?: NotificationType;
+          data?: Json;
+          read?: boolean;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey";
+            columns: ["user_id"];
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {};
     Functions: {
@@ -190,6 +225,12 @@ export interface Database {
           username: string;
         }[];
       };
+      mark_notification_read: {
+        Args: {
+          p_notification_id: string;
+        };
+        Returns: undefined;
+      };
     };
     Enums: {
       friendship_status: FriendshipStatus;
@@ -235,3 +276,5 @@ export type InterceptResult = {
   salt_reward: number;
   snail_reward: number;
 };
+
+export type Notification = Database["public"]["Tables"]["notifications"]["Row"];
