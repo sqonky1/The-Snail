@@ -35,9 +35,11 @@ export function useSnails() {
 
     if (error) {
       setError(error);
-    } else {
-      setSnails((data as Snail[]) ?? []);
+      setLoading(false);
+      return;
     }
+
+    setSnails((data as Snail[]) ?? []);
     setLoading(false);
   }, [user]);
 

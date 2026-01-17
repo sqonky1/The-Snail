@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
 import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
+import { useFriendships } from "@/hooks/useFriendships";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
 import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
@@ -13,6 +14,19 @@ export default function MapTab() {
   const { user } = useAuth();
   const { incomingSnails, outgoingSnails } = useSnails();
   const { profile } = useProfile();
+  const { friends } = useFriendships();
+
+  const friendHomeLocations = useMemo(() => {
+    const map = new Map<string, unknown>();
+    for (const friendship of friends) {
+      if (friendship.requester_id === user?.id) {
+        map.set(friendship.addressee_id, friendship.addressee_home_location);
+      } else {
+        map.set(friendship.requester_id, friendship.requester_home_location);
+      }
+    }
+    return map;
+  }, [friends, user?.id]);
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const initialCenter = useRef<[number, number] | undefined>(undefined);
@@ -213,14 +227,21 @@ export default function MapTab() {
       },
     });
 
+    map.addSource("friend-home-zones", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
     map.addLayer({
-      id: "home-base-outline",
-      type: "line",
-      source: "home-base-zone",
+      id: "friend-home-fill",
+      type: "fill",
+      source: "friend-home-zones",
       paint: {
-        "line-color": "#2563EB",
-        "line-width": 2,
-        "line-dasharray": [1, 1],
+        "fill-color": "#A855F7",
+        "fill-opacity": 0.15,
       },
     });
   };
@@ -270,6 +291,35 @@ export default function MapTab() {
       features: [createCirclePolygon(center, 1000)],
     });
   }, [profile?.home_location, mapLoaded]);
+
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const source = mapRef.current.getSource(
+      "friend-home-zones"
+    ) as mapboxgl.GeoJSONSource | undefined;
+
+    if (!source) return;
+
+    const features: GeoJSON.Feature[] = [];
+    const seenLocations = new Set<string>();
+
+    for (const snail of outgoingSnails) {
+      const homeLocationRaw = friendHomeLocations.get(snail.target_id);
+      const homeLocation = parseSupabasePoint(homeLocationRaw);
+      if (!homeLocation) continue;
+
+      const locationKey = `${homeLocation.lng},${homeLocation.lat}`;
+      if (seenLocations.has(locationKey)) continue;
+      seenLocations.add(locationKey);
+
+      features.push(createCirclePolygon(homeLocation, 1000));
+    }
+
+    source.setData({
+      type: "FeatureCollection",
+      features,
+    });
+  }, [outgoingSnails, friendHomeLocations, mapLoaded]);
 
   // Update snail positions and check for intercept opportunities
   useEffect(() => {
@@ -323,7 +373,7 @@ export default function MapTab() {
           });
         }
 
-        if (snailPos.futureTrail.length >= 2) {
+        if (snailPos.futureTrail.length >= 2 && direction === "outgoing") {
           trailFeatures.push({
             type: "Feature",
             properties: { trailType: "future", color },
