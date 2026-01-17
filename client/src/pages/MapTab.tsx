@@ -11,6 +11,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
 import type { Snail } from "@/lib/database.types";
+import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
 
 export default function MapTab() {
   const { user } = useAuth();
@@ -162,6 +163,35 @@ export default function MapTab() {
         "circle-stroke-color": "#FFFFFF",
       },
     });
+
+    map.addSource("home-base-zone", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    map.addLayer({
+      id: "home-base-fill",
+      type: "fill",
+      source: "home-base-zone",
+      paint: {
+        "fill-color": "#3B82F6",
+        "fill-opacity": 0.15,
+      },
+    });
+
+    map.addLayer({
+      id: "home-base-outline",
+      type: "line",
+      source: "home-base-zone",
+      paint: {
+        "line-color": "#2563EB",
+        "line-width": 2,
+        "line-dasharray": [1, 1],
+      },
+    });
   };
 
   // Update user position on map
@@ -184,6 +214,29 @@ export default function MapTab() {
     if (!mapRef.current || !userPosition || !mapLoaded) return;
     updateUserPositionOnMap(mapRef.current, userPosition);
   }, [userPosition, mapLoaded]);
+
+  useEffect(() => {
+    if (!mapRef.current || !mapLoaded) return;
+    const source = mapRef.current.getSource(
+      "home-base-zone"
+    ) as mapboxgl.GeoJSONSource | undefined;
+
+    if (!source) return;
+
+    const center = parseSupabasePoint(profile?.home_location);
+    if (!center) {
+      source.setData({
+        type: "FeatureCollection",
+        features: [],
+      });
+      return;
+    }
+
+    source.setData({
+      type: "FeatureCollection",
+      features: [createCirclePolygon(center, 1000)],
+    });
+  }, [profile?.home_location, mapLoaded]);
 
   // Update snail positions and check for intercept opportunities
   useEffect(() => {

@@ -25,7 +25,9 @@ RETURNS TABLE (
   created_at TIMESTAMPTZ,
   responded_at TIMESTAMPTZ,
   requester_username TEXT,
-  addressee_username TEXT
+  requester_home_location geography,
+  addressee_username TEXT,
+  addressee_home_location geography
 )
 LANGUAGE sql
 SECURITY DEFINER
@@ -39,7 +41,9 @@ AS $$
     f.created_at,
     f.responded_at,
     pr.username AS requester_username,
-    pa.username AS addressee_username
+    pr.home_location AS requester_home_location,
+    pa.username AS addressee_username,
+    pa.home_location AS addressee_home_location
   FROM public.friendships f
   JOIN public.profiles pr ON pr.id = f.requester_id
   JOIN public.profiles pa ON pa.id = f.addressee_id

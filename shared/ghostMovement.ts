@@ -1,3 +1,5 @@
+import { SNAIL_TRAVEL_DURATION_HOURS } from "./const";
+
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -202,6 +204,15 @@ export function getRemainingHours(
   return Math.max(0, remaining / (1000 * 60 * 60));
 }
 
+export function estimateArrivalTime(
+  distanceMeters: number,
+  speedMetersPerSecond: number,
+  startTime: Date = new Date()
+): Date {
+  const durationSeconds = distanceMeters / speedMetersPerSecond;
+  return new Date(startTime.getTime() + durationSeconds * 1000);
+}
+
 /**
  * Get elapsed time since start in hours
  */
@@ -211,4 +222,11 @@ export function getElapsedHours(
 ): number {
   const elapsed = now.getTime() - startTime.getTime();
   return Math.max(0, elapsed / (1000 * 60 * 60));
+}
+
+export function getDefaultArrivalTime(
+  startTime: Date = new Date(),
+  durationHours: number = SNAIL_TRAVEL_DURATION_HOURS
+): Date {
+  return new Date(startTime.getTime() + durationHours * 60 * 60 * 1000);
 }

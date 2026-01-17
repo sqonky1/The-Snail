@@ -73,6 +73,7 @@ export function useSnails() {
   const deploySnail = useCallback(
     async (
       targetId: string,
+      friendshipId: string,
       pathJson: [number, number][],
       arrivalTime: Date
     ) => {
@@ -81,6 +82,7 @@ export function useSnails() {
       const snailData: Record<string, unknown> = {
         sender_id: user.id,
         target_id: targetId,
+        friendship_id: friendshipId,
         path_json: pathJson,
         arrival_time: arrivalTime.toISOString(),
         status: "moving",

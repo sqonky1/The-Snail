@@ -136,7 +136,9 @@ export interface Database {
           created_at: string;
           responded_at: string | null;
           requester_username: string | null;
+          requester_home_location: unknown | null;
           addressee_username: string | null;
+          addressee_home_location: unknown | null;
         }[];
       };
       request_friend: {

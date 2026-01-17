@@ -1,5 +1,6 @@
 import BottomNav from "@/components/BottomNav";
 import GameWidget from "@/components/GameWidget";
+import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,18 +18,35 @@ import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useFriendships } from "@/hooks/useFriendships";
 import { useSnails } from "@/hooks/useSnails";
+import { useProfile } from "@/hooks/useProfile";
+import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
+import type { Coordinates } from "@shared/ghostMovement";
 import {
   calculateProgress,
+  haversineDistance,
+  getDefaultArrivalTime,
   getRemainingHours,
+  coordinatesToPathJson,
 } from "@shared/ghostMovement";
+import {
+  HOME_ZONE_RADIUS_KM,
+  MIN_DEPLOY_DISTANCE_METERS,
+  SNAIL_TRAVEL_DURATION_HOURS,
+} from "@shared/const";
+import { fetchWalkingRoute } from "@/lib/routing";
 import { Check, Loader2, Plus, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import type { FeatureCollection } from "geojson";
+
+const emptyFeatureCollection = (): FeatureCollection => ({
+  type: "FeatureCollection",
+  features: [],
+});
 
 export default function DeployTab() {
   const { user } = useAuth();
-  const { outgoingSnails, loading } = useSnails();
+  const { outgoingSnails, loading, deploySnail } = useSnails();
   const {
     friends,
     incomingRequests,
@@ -42,12 +60,34 @@ export default function DeployTab() {
     requestFriend,
     respondToRequest,
   } = useFriendships();
+  const { profile, useSnail } = useProfile();
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
   const [requestingId, setRequestingId] = useState<string | null>(null);
   const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [isDeployDialogOpen, setIsDeployDialogOpen] = useState(false);
+  const [selectedFriendshipId, setSelectedFriendshipId] = useState<string | null>(
+    null
+  );
+  const [deploying, setDeploying] = useState(false);
+  const [deployMap, setDeployMap] = useState<mapboxgl.Map | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<Coordinates | null>(null);
+  const [routePreview, setRoutePreview] = useState<Coordinates[] | null>(null);
+  const [routeStats, setRouteStats] = useState<{ distanceMeters: number } | null>(
+    null
+  );
+  const [routingPreview, setRoutingPreview] = useState(false);
+
+  const dropRequirementKm = MIN_DEPLOY_DISTANCE_METERS / 1000;
+
+  const resetDeployState = useCallback(() => {
+    setSelectedTarget(null);
+    setRoutePreview(null);
+    setRouteStats(null);
+    setRoutingPreview(false);
+  }, []);
 
   useEffect(() => {
     if (!isAddFriendOpen) {
@@ -63,6 +103,11 @@ export default function DeployTab() {
     incomingRequests.length === 0 &&
     outgoingRequests.length === 0;
 
+  const myHomeLocation = useMemo(
+    () => parseSupabasePoint(profile?.home_location),
+    [profile?.home_location]
+  );
+
   const getFriendUsername = (friendship: (typeof friends)[number]) => {
     if (friendship.requester_id === user?.id) {
       return friendship.addressee_username || "Mystery Player";
@@ -70,10 +115,437 @@ export default function DeployTab() {
     return friendship.requester_username || "Mystery Player";
   };
 
+  const hasSnailInventory = (profile?.snail_inventory ?? 0) > 0;
+
+  const deployableFriends = useMemo(
+    () =>
+      friends.map((friendship) => {
+        const isRequester = friendship.requester_id === user?.id;
+        const profileId = isRequester
+          ? friendship.addressee_id
+          : friendship.requester_id;
+        const username = getFriendUsername(friendship);
+        const homeLocation = parseSupabasePoint(
+          isRequester
+            ? friendship.addressee_home_location
+            : friendship.requester_home_location
+        );
+
+        return {
+          friendshipId: friendship.id,
+          profileId,
+          username,
+          homeLocation,
+        };
+      }),
+    [friends, user?.id]
+  );
+
+  const selectedFriend = useMemo(
+    () =>
+      deployableFriends.find(
+        (friend) => friend.friendshipId === selectedFriendshipId
+      ),
+    [deployableFriends, selectedFriendshipId]
+  );
+
+  const targetDistanceFromFriendKm = useMemo(() => {
+    if (!selectedFriend?.homeLocation || !selectedTarget) {
+      return null;
+    }
+
+    return (
+      haversineDistance(selectedFriend.homeLocation, selectedTarget) / 1000
+    );
+  }, [selectedFriend?.homeLocation, selectedTarget]);
+
+  const deployMapCenter = useMemo<[number, number] | undefined>(() => {
+    if (selectedFriend?.homeLocation) {
+      return [
+        selectedFriend.homeLocation.lng,
+        selectedFriend.homeLocation.lat,
+      ];
+    }
+    if (myHomeLocation) {
+      return [myHomeLocation.lng, myHomeLocation.lat];
+    }
+    return undefined;
+  }, [selectedFriend?.homeLocation, myHomeLocation]);
+
+  useEffect(() => {
+    if (deployableFriends.length === 0) {
+      setSelectedFriendshipId(null);
+      return;
+    }
+
+    if (
+      selectedFriendshipId &&
+      deployableFriends.some((f) => f.friendshipId === selectedFriendshipId)
+    ) {
+      return;
+    }
+
+    const fallback =
+      deployableFriends.find((f) => f.homeLocation) ?? deployableFriends[0];
+    setSelectedFriendshipId(fallback?.friendshipId ?? null);
+  }, [deployableFriends, selectedFriendshipId]);
+
+  useEffect(() => {
+    setSelectedTarget(null);
+    setRoutePreview(null);
+    setRouteStats(null);
+    setRoutingPreview(false);
+  }, [selectedFriendshipId]);
+
   const handleDeploySnail = () => {
-    console.log("Deploy snail clicked");
-    // TODO: Open deployment modal
+    if (deployableFriends.length === 0) {
+      toast.error("Add a friend before deploying a snail.");
+      return;
+    }
+
+    if (!profile) {
+      toast.error("Profile not loaded yet.");
+      return;
+    }
+
+    if (!myHomeLocation) {
+      toast.error("Set your home base before deploying snails.");
+      return;
+    }
+
+    if (!hasSnailInventory) {
+      toast.error("You have no snails available.");
+      return;
+    }
+
+    const fallback =
+      deployableFriends.find((f) => f.homeLocation) ?? deployableFriends[0];
+    resetDeployState();
+    setSelectedFriendshipId(fallback?.friendshipId ?? null);
+    setIsDeployDialogOpen(true);
   };
+
+  const handleConfirmDeploy = async () => {
+    if (!profile) {
+      toast.error("Profile not loaded yet.");
+      return;
+    }
+
+    if (!myHomeLocation) {
+      toast.error("Set your home base before deploying snails.");
+      return;
+    }
+
+    if (!hasSnailInventory) {
+      toast.error("You have no snails available.");
+      return;
+    }
+
+    if (!selectedFriend) {
+      toast.error("Select a friend to target.");
+      return;
+    }
+
+    if (!selectedFriend.homeLocation) {
+      toast.error("This friend has not set their home base yet.");
+      return;
+    }
+
+    if (!selectedTarget || !routePreview) {
+      toast.error("Select a drop site to generate a walking route.");
+      return;
+    }
+
+    const distanceFromFriend = haversineDistance(
+      selectedFriend.homeLocation,
+      selectedTarget
+    );
+    if (distanceFromFriend < MIN_DEPLOY_DISTANCE_METERS) {
+      toast.error(
+        `Pick a point at least ${dropRequirementKm.toFixed(
+          1
+        )}km from ${selectedFriend.username}'s base.`
+      );
+      return;
+    }
+
+    setDeploying(true);
+    try {
+      const pathJson = coordinatesToPathJson(routePreview);
+      const arrivalTime = getDefaultArrivalTime();
+
+      await deploySnail(
+        selectedFriend.profileId,
+        selectedFriend.friendshipId,
+        pathJson,
+        arrivalTime
+      );
+      await useSnail();
+      toast.success(`Snail deployed to ${selectedFriend.username}`);
+      setIsDeployDialogOpen(false);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to deploy snail";
+      toast.error(message);
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const handleDeployMapLoad = useCallback(
+    (map: mapboxgl.Map) => {
+      setDeployMap(map);
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+
+      map.addSource("deploy-friend-home", {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+      map.addLayer({
+        id: "deploy-friend-home-fill",
+        type: "fill",
+        source: "deploy-friend-home",
+        paint: {
+          "fill-color": "#C084FC",
+          "fill-opacity": 0.2,
+        },
+      });
+      map.addLayer({
+        id: "deploy-friend-home-outline",
+        type: "line",
+        source: "deploy-friend-home",
+        paint: {
+          "line-color": "#A855F7",
+          "line-width": 2,
+        },
+      });
+
+      map.addSource("deploy-drop-boundary", {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+      map.addLayer({
+        id: "deploy-drop-boundary-outline",
+        type: "line",
+        source: "deploy-drop-boundary",
+        paint: {
+          "line-color": "#FBBF24",
+          "line-width": 2,
+          "line-dasharray": [1.5, 1.5],
+        },
+      });
+
+      map.addSource("deploy-target-point", {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+      map.addLayer({
+        id: "deploy-target-circle",
+        type: "circle",
+        source: "deploy-target-point",
+        paint: {
+          "circle-radius": 8,
+          "circle-color": "#22C55E",
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#FFFFFF",
+        },
+      });
+
+      map.addSource("deploy-route-line", {
+        type: "geojson",
+        data: emptyFeatureCollection(),
+      });
+      map.addLayer({
+        id: "deploy-route",
+        type: "line",
+        source: "deploy-route-line",
+        paint: {
+          "line-color": "#0EA5E9",
+          "line-width": 3,
+        },
+      });
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!deployMap || !isDeployDialogOpen) return;
+
+    const handleClick = (event: mapboxgl.MapMouseEvent) => {
+      if (!myHomeLocation) {
+        toast.error("Set your home base before deploying snails.");
+        return;
+      }
+      if (!selectedFriend?.homeLocation) {
+        toast.error("Ask this friend to set their home base first.");
+        return;
+      }
+
+      const point: Coordinates = {
+        lat: event.lngLat.lat,
+        lng: event.lngLat.lng,
+      };
+      const distanceFromFriend = haversineDistance(
+        selectedFriend.homeLocation,
+        point
+      );
+
+      if (distanceFromFriend < MIN_DEPLOY_DISTANCE_METERS) {
+        toast.error(
+          `Drop site must be at least ${dropRequirementKm.toFixed(
+            1
+          )}km from ${selectedFriend.username}'s base.`
+        );
+        return;
+      }
+
+      setSelectedTarget(point);
+    };
+
+    deployMap.on("click", handleClick);
+    return () => {
+      deployMap.off("click", handleClick);
+    };
+  }, [
+    deployMap,
+    selectedFriend?.homeLocation,
+    selectedFriend?.username,
+    myHomeLocation,
+    dropRequirementKm,
+    isDeployDialogOpen,
+  ]);
+
+  useEffect(() => {
+    if (!deployMap) return;
+
+    const friendHomeSource = deployMap.getSource(
+      "deploy-friend-home"
+    ) as mapboxgl.GeoJSONSource | undefined;
+    const dropBoundarySource = deployMap.getSource(
+      "deploy-drop-boundary"
+    ) as mapboxgl.GeoJSONSource | undefined;
+
+    if (selectedFriend?.homeLocation) {
+      if (friendHomeSource) {
+        friendHomeSource.setData({
+          type: "FeatureCollection",
+          features: [
+            createCirclePolygon(
+              selectedFriend.homeLocation,
+              HOME_ZONE_RADIUS_KM * 1000
+            ),
+          ],
+        });
+      }
+
+      if (dropBoundarySource) {
+        dropBoundarySource.setData({
+          type: "FeatureCollection",
+          features: [
+            createCirclePolygon(
+              selectedFriend.homeLocation,
+              MIN_DEPLOY_DISTANCE_METERS
+            ),
+          ],
+        });
+      }
+    } else {
+      friendHomeSource?.setData(emptyFeatureCollection());
+      dropBoundarySource?.setData(emptyFeatureCollection());
+    }
+  }, [deployMap, selectedFriend?.homeLocation]);
+
+  useEffect(() => {
+    if (!deployMap) return;
+
+    const targetSource = deployMap.getSource(
+      "deploy-target-point"
+    ) as mapboxgl.GeoJSONSource | undefined;
+    if (!targetSource) return;
+
+    if (selectedTarget) {
+      targetSource.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "Point",
+              coordinates: [selectedTarget.lng, selectedTarget.lat],
+            },
+          },
+        ],
+      });
+    } else {
+      targetSource.setData(emptyFeatureCollection());
+    }
+  }, [deployMap, selectedTarget]);
+
+  useEffect(() => {
+    if (!deployMap) return;
+
+    const routeSource = deployMap.getSource(
+      "deploy-route-line"
+    ) as mapboxgl.GeoJSONSource | undefined;
+    if (!routeSource) return;
+
+    if (routePreview) {
+      routeSource.setData({
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: {
+              type: "LineString",
+              coordinates: routePreview.map((coord) => [coord.lng, coord.lat]),
+            },
+          },
+        ],
+      });
+    } else {
+      routeSource.setData(emptyFeatureCollection());
+    }
+  }, [deployMap, routePreview]);
+
+  useEffect(() => {
+    if (!selectedTarget || !myHomeLocation) {
+      setRoutePreview(null);
+      setRouteStats(null);
+      setRoutingPreview(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRoutingPreview(true);
+
+    fetchWalkingRoute(myHomeLocation, selectedTarget)
+      .then((route) => {
+        if (cancelled) return;
+        setRoutePreview(route.coordinates);
+        setRouteStats({ distanceMeters: route.distance });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to plan a walking route";
+        toast.error(message);
+        setRoutePreview(null);
+        setRouteStats(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setRoutingPreview(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTarget, myHomeLocation]);
 
   const handleSearchSubmit = async (
     event: FormEvent<HTMLFormElement>
@@ -392,6 +864,164 @@ export default function DeployTab() {
               <Plus className="w-4 h-4" />
             </Button>
           </div>
+
+          <Dialog
+            open={isDeployDialogOpen}
+            onOpenChange={(open) => {
+              setIsDeployDialogOpen(open);
+              if (!open) {
+                setDeploying(false);
+                resetDeployState();
+                setDeployMap(null);
+              }
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Deploy a snail</DialogTitle>
+                <DialogDescription>
+                  Snails travel for {SNAIL_TRAVEL_DURATION_HOURS} hours regardless of
+                  distance. Pick a friend to send one to.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-3">
+                <div className="rounded-md border border-border/70 p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Snails available</span>
+                    <span className="font-semibold">
+                      {profile?.snail_inventory ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Home base</span>
+                    <span className="font-semibold">
+                      {myHomeLocation ? "Ready" : "Not set"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {deployableFriends.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Add a friend to send a snail.
+                    </p>
+                  ) : (
+                    deployableFriends.map((friend) => {
+                      const selected =
+                        friend.friendshipId === selectedFriendshipId;
+                      const disabled = !friend.homeLocation;
+                      return (
+                        <button
+                          key={friend.friendshipId}
+                          type="button"
+                          onClick={() =>
+                            !disabled &&
+                            setSelectedFriendshipId(friend.friendshipId)
+                          }
+                          className={`w-full text-left rounded-md border px-3 py-2 transition ${
+                            selected ? "border-primary bg-primary/5" : "border-border/70"
+                          } ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
+                          disabled={disabled}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{friend.username}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {disabled
+                                  ? "Home base not set"
+                                  : "Home base ready"}
+                              </p>
+                            </div>
+                            {selected && !disabled && (
+                              <Check className="w-4 h-4 text-primary" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-foreground">
+                      Drop site
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      ≥ {dropRequirementKm.toFixed(1)} km from base
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Click the map to place a snail. Routes snap to
+                    OpenStreetMap walking paths so players can intercept along
+                    sidewalks.
+                  </p>
+                  <div className="relative h-72 rounded-lg border border-border/70 overflow-hidden">
+                    {selectedFriend?.homeLocation ? (
+                      <MapboxMap
+                        center={deployMapCenter}
+                        zoom={12}
+                        onMapLoad={handleDeployMapLoad}
+                        className="h-full w-full"
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                        Ask this friend to set their home base before deploying.
+                      </div>
+                    )}
+                    {routingPreview && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    )}
+                  </div>
+                  {selectedTarget && targetDistanceFromFriendKm !== null && (
+                    <p className="text-xs text-muted-foreground">
+                      Drop site distance: {targetDistanceFromFriendKm.toFixed(2)}{" "}
+                      km from {selectedFriend?.username}'s base.
+                    </p>
+                  )}
+                  {routeStats && (
+                    <p className="text-xs text-muted-foreground">
+                      Walking route length:{" "}
+                      {(routeStats.distanceMeters / 1000).toFixed(2)} km
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDeployDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmDeploy}
+                  disabled={
+                    deploying ||
+                    !selectedFriend?.homeLocation ||
+                    !myHomeLocation ||
+                    !hasSnailInventory ||
+                    !routePreview ||
+                    !selectedTarget ||
+                    routingPreview
+                  }
+                >
+                  {deploying ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    "Deploy"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           <GameWidget>
             {loading ? (

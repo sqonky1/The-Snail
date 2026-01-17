@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 export type FriendshipWithDetails = Friendship & {
   requester_username: string;
   addressee_username: string;
+  requester_home_location: unknown | null;
+  addressee_home_location: unknown | null;
 };
 
 export type ProfileSearchResult = {
@@ -46,6 +48,8 @@ export function useFriendships() {
           friendship.requester_username ?? "Mystery Player",
         addressee_username:
           friendship.addressee_username ?? "Mystery Player",
+        requester_home_location: friendship.requester_home_location ?? null,
+        addressee_home_location: friendship.addressee_home_location ?? null,
       }));
       setFriendships(normalized as FriendshipWithDetails[]);
     }

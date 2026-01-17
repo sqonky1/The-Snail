@@ -12,6 +12,7 @@ The Snail is a geolocation-based strategy game built with React, Vite, and Supab
 
 - **Home Base**: A 1km radius location in Singapore where your snails start and end their journeys
 - **Snails**: Virtual creatures that travel between players' home bases along pre-calculated paths
+- **Fixed Journey Duration**: Every deployment lasts exactly 48 hours, so players weigh risk vs. reward by deciding where to drop a snail rather than how fast it travels
 - **Salt**: In-game currency earned from successful snail deliveries
 - **Journey Status**: Snails can be moving, intercepted, or arrived
 - **Client-Side Rendering**: Snail positions calculated in real-time by the client using stored path and timestamp data
@@ -142,8 +143,9 @@ CREATE TABLE public.snails (
 ### 4. Key Features
 
 #### Snail Deployment & Movement
-- Players select a target from nearby players
-- System calculates a path and journey time based on real distance
+- Players select a friend and then click on the map to choose a drop site at least 5km from that friend's 1km-radius home base
+- Walking routes are fetched from the free OSRM foot router (OpenStreetMap) so snails hug sidewalks and other pedestrian paths
+- Travel time is always 48 hours; distance only affects the rendered route and interception opportunities
 - Snail data stored in database with:
   - `path_json`: Array of [lng, lat] coordinates
   - `start_time`: When the journey began
