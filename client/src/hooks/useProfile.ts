@@ -41,11 +41,16 @@ export function useProfile() {
   }, [fetchProfile]);
 
   const createProfile = useCallback(
-    async (username: string, homeLocation?: { lat: number; lng: number }) => {
-      if (!user) throw new Error("Not authenticated");
+    async (
+      username: string,
+      homeLocation?: { lat: number; lng: number },
+      userIdOverride?: string
+    ) => {
+      const userId = userIdOverride ?? user?.id;
+      if (!userId) throw new Error("Not authenticated");
 
       const insertData: Record<string, unknown> = {
-        id: user.id,
+        id: userId,
         username,
       };
 
@@ -61,7 +66,10 @@ export function useProfile() {
         .single();
 
       if (error) throw error;
-      setProfile(data as Profile);
+      // If we created profile for current user, update state
+      if (!userIdOverride || userIdOverride === user?.id) {
+        setProfile(data as Profile);
+      }
       return data as Profile;
     },
     [user]

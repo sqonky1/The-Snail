@@ -78,8 +78,12 @@ export function useAuth(options?: UseAuthOptions) {
   );
 
   const signUpWithEmail = useCallback(
-    async (email: string, password: string, username: string) => {
-      const { error } = await supabase.auth.signUp({
+    async (
+      email: string,
+      password: string,
+      username: string
+    ): Promise<User | null> => {
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -87,8 +91,9 @@ export function useAuth(options?: UseAuthOptions) {
         },
       });
       if (error) throw error;
+      return data.user ?? null;
     },
-    []
+    [],
   );
 
   const signInWithOAuth = useCallback(

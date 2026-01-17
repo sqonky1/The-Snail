@@ -9,15 +9,23 @@ import MapTab from "./pages/MapTab";
 import DeployTab from "./pages/DeployTab";
 import ProfileTab from "./pages/ProfileTab";
 import { useAuth } from "./_core/hooks/useAuth";
+import { useProfile } from "@/hooks/useProfile";
+import SetupHomeBase from "@/pages/SetupHomeBase";
 
 function ProtectedRoute({
   component: Component,
+  requireProfile = false,
 }: {
   component: React.ComponentType;
+  requireProfile?: boolean;
 }) {
   const { isAuthenticated, loading } = useAuth();
+  const {
+    profile,
+    loading: profileLoading,
+  } = useProfile();
 
-  if (loading) {
+  if (loading || (requireProfile && profileLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-muted-foreground">Loading...</div>
@@ -29,6 +37,10 @@ function ProtectedRoute({
     return <Redirect to="/login" />;
   }
 
+  if (requireProfile && (!profile || !profile.home_location)) {
+    return <Redirect to="/setup-home-base" />;
+  }
+
   return <Component />;
 }
 
@@ -37,13 +49,16 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/">
-        <ProtectedRoute component={MapTab} />
+        <ProtectedRoute component={MapTab} requireProfile />
       </Route>
       <Route path="/deploy">
-        <ProtectedRoute component={DeployTab} />
+        <ProtectedRoute component={DeployTab} requireProfile />
       </Route>
       <Route path="/profile">
-        <ProtectedRoute component={ProfileTab} />
+        <ProtectedRoute component={ProfileTab} requireProfile />
+      </Route>
+      <Route path="/setup-home-base">
+        <ProtectedRoute component={SetupHomeBase} />
       </Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
