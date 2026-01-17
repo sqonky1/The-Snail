@@ -297,6 +297,58 @@ export default function MapTab() {
       },
     });
 
+    // Home base label sources
+    map.addSource("home-base-label", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    map.addSource("friend-home-labels", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    // Home base label layers
+    map.addLayer({
+      id: "home-base-label-text",
+      type: "symbol",
+      source: "home-base-label",
+      layout: {
+        "text-field": ["get", "label"],
+        "text-size": 14,
+        "text-anchor": "center",
+        "text-offset": [0, 0],
+      },
+      paint: {
+        "text-color": "#3B82F6",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 2,
+      },
+    });
+
+    map.addLayer({
+      id: "friend-home-labels-text",
+      type: "symbol",
+      source: "friend-home-labels",
+      layout: {
+        "text-field": ["get", "label"],
+        "text-size": 14,
+        "text-anchor": "center",
+        "text-offset": [0, 0],
+      },
+      paint: {
+        "text-color": "#A855F7",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 2,
+      },
+    });
+
     // Snail trails source
     map.addSource("snail-trails", {
       type: "geojson",
@@ -477,12 +529,19 @@ export default function MapTab() {
     const source = mapRef.current.getSource(
       "home-base-zone"
     ) as mapboxgl.GeoJSONSource | undefined;
+    const labelSource = mapRef.current.getSource(
+      "home-base-label"
+    ) as mapboxgl.GeoJSONSource | undefined;
 
-    if (!source) return;
+    if (!source || !labelSource) return;
 
     const center = parseSupabasePoint(profile?.home_location);
     if (!center) {
       source.setData({
+        type: "FeatureCollection",
+        features: [],
+      });
+      labelSource.setData({
         type: "FeatureCollection",
         features: [],
       });
@@ -493,6 +552,20 @@ export default function MapTab() {
       type: "FeatureCollection",
       features: [createCirclePolygon(center, 1000)],
     });
+
+    labelSource.setData({
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { label: "Your Home Base" },
+          geometry: {
+            type: "Point",
+            coordinates: [center.lng, center.lat],
+          },
+        },
+      ],
+    });
   }, [profile?.home_location, mapLoaded]);
 
   useEffect(() => {
@@ -500,10 +573,14 @@ export default function MapTab() {
     const source = mapRef.current.getSource(
       "friend-home-zones"
     ) as mapboxgl.GeoJSONSource | undefined;
+    const labelSource = mapRef.current.getSource(
+      "friend-home-labels"
+    ) as mapboxgl.GeoJSONSource | undefined;
 
-    if (!source) return;
+    if (!source || !labelSource) return;
 
     const features: GeoJSON.Feature[] = [];
+    const labelFeatures: GeoJSON.Feature[] = [];
     const seenLocations = new Set<string>();
 
     for (const snail of outgoingSnails) {
@@ -516,13 +593,28 @@ export default function MapTab() {
       seenLocations.add(locationKey);
 
       features.push(createCirclePolygon(homeLocation, 1000));
+
+      const friendUsername = friendUsernames.get(snail.target_id) ?? "Friend";
+      labelFeatures.push({
+        type: "Feature",
+        properties: { label: `${friendUsername} Home Base` },
+        geometry: {
+          type: "Point",
+          coordinates: [homeLocation.lng, homeLocation.lat],
+        },
+      });
     }
 
     source.setData({
       type: "FeatureCollection",
       features,
     });
-  }, [outgoingSnails, friendHomeLocations, mapLoaded]);
+
+    labelSource.setData({
+      type: "FeatureCollection",
+      features: labelFeatures,
+    });
+  }, [outgoingSnails, friendHomeLocations, friendUsernames, mapLoaded]);
 
   // Update snail positions and check for intercept opportunities
   useEffect(() => {

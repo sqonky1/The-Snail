@@ -1127,9 +1127,9 @@ export default function DeployTab() {
                   <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <img
-                              src="/snail-avatar.svg"
+                              src="/user-snail.webp"
                               alt=""
-                              className="h-10 w-10 rounded-full bg-white/70 p-1 shadow"
+                              className="h-10 w-10"
                             />
                             <span className="font-medium text-foreground">
                               To {snail.target_username}
@@ -1172,9 +1172,9 @@ export default function DeployTab() {
                   <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <img
-                          src="/snail-avatar.svg"
+                          src="/enemy-snail.webp"
                           alt=""
-                          className="h-10 w-10 rounded-full bg-white/70 p-1 shadow ring-2 ring-[var(--racing-red)]/50"
+                          className="h-10 w-10"
                         />
                         <span className="font-medium text-foreground">
                           From {snail.sender_username}
@@ -1184,7 +1184,7 @@ export default function DeployTab() {
                       {formatRemainingTime(snail.remainingHours)}
                     </span>
                   </div>
-                    <Progress value={snail.progress} className="h-3" />
+                    <Progress value={snail.progress} variant="danger" className="h-3" />
                 </button>
               ))}
             </div>
