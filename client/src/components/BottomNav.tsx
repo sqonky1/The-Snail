@@ -1,8 +1,8 @@
-import { Bell, Home, Shell, User } from "lucide-react";
+import { Bell, Home, Shell, User, Sprout } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/hooks/useNotifications";
 
-export type TabType = "map" | "deploy" | "notifications" | "profile";
+export type TabType = "map" | "deploy" | "garden" | "notifications" | "profile";
 
 interface BottomNavProps {
   activeTab: TabType;
@@ -14,6 +14,7 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
   const tabs = [
     { id: "map" as TabType, icon: Home, label: "Home", path: "/" },
     { id: "deploy" as TabType, icon: Shell, label: "Snails", path: "/deploy" },
+    { id: "garden" as TabType, icon: Sprout, label: "Garden", path: "/garden" },
     { id: "notifications" as TabType, icon: Bell, label: "Alerts", path: "/notifications" },
     { id: "profile" as TabType, icon: User, label: "Base", path: "/profile" },
   ];
