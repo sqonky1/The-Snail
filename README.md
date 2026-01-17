@@ -146,6 +146,7 @@ CREATE TABLE public.snails (
 - Players select a friend and then click on the map to choose a drop site at least 5km from that friend's 1km-radius home base
 - Walking routes are fetched from the free OSRM foot router (OpenStreetMap) so snails hug sidewalks and other pedestrian paths
 - Travel time is always 48 hours; distance only affects the rendered route and interception opportunities
+- The Deploy tab shows both outgoing and incoming snails with countdowns; tapping any entry jumps the map view to that snail's live position for quick tracking
 - Snail data stored in database with:
   - `path_json`: Array of [lng, lat] coordinates
   - `start_time`: When the journey began

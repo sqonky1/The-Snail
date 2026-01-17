@@ -1153,14 +1153,9 @@ export default function DeployTab() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">🐌</span>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-foreground">
-                            To {snail.target_username}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {snail.target_id.slice(0, 8)}...
-                          </span>
-                        </div>
+                        <span className="font-medium text-foreground">
+                          To {snail.target_username}
+                        </span>
                       </div>
                       <span className="text-sm text-muted-foreground">
                         {snail.remainingHours.toFixed(1)}h left
