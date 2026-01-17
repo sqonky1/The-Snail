@@ -2,7 +2,7 @@ import BottomNav from "@/components/BottomNav";
 import GameWidget from "@/components/GameWidget";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MapPin, Edit, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useState } from "react";
@@ -15,11 +15,6 @@ export default function ProfileTab() {
     type: "success" | "error";
     message: string;
   } | null>(null);
-
-  const handleEditHome = () => {
-    console.log("Edit home zone clicked");
-    // TODO: Open home zone editor
-  };
 
   const handleLogout = async () => {
     try {
@@ -194,38 +189,6 @@ export default function ProfileTab() {
           </GameWidget>
         </div>
 
-        {/* Home Zone Preview */}
-        <GameWidget>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-gaegu font-bold text-3xl text-foreground">Home Zone</h2>
-            <Button
-              onClick={handleEditHome}
-              size="sm"
-              variant="outline"
-              className="gap-2"
-            >
-              <Edit className="w-4 h-4" />
-              Edit
-            </Button>
-          </div>
-          <div className="space-y-3">
-            <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-accent/10" />
-              <div className="relative z-10 text-center">
-                <MapPin className="w-12 h-12 text-primary mx-auto mb-2" />
-                <p className="text-sm text-muted-foreground">
-                  {profile?.home_location
-                    ? "Home location set"
-                    : "No home location set"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Protection Radius</span>
-              <span className="font-medium text-foreground">1.0 km</span>
-            </div>
-          </div>
-        </GameWidget>
         </div>
       </div>
       <BottomNav activeTab="profile" />
