@@ -340,13 +340,41 @@ export default function MapTab() {
       },
     });
 
-    // Snail markers
+    map.loadImage("/user-snail.webp", (error, image) => {
+      if (!error && image) {
+        if (!map.hasImage("user-snail")) {
+          map.addImage("user-snail", image, { pixelRatio: 2 });
+        }
+      }
+    });
+
+    map.loadImage("/enemy-snail.webp", (error, image) => {
+      if (!error && image) {
+        if (!map.hasImage("enemy-snail")) {
+          map.addImage("enemy-snail", image, { pixelRatio: 2 });
+        }
+      }
+    });
+
+    // Snail markers glow
     map.addLayer({
       id: "snail-marker-glow",
       type: "circle",
       source: "snail-positions",
       paint: {
-        "circle-radius": 18,
+        "circle-radius": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3,
+          4,
+          8,
+          8,
+          14,
+          12,
+          18,
+          16,
+        ],
         "circle-color": [
           "case",
           ["==", ["get", "direction"], "outgoing"],
@@ -358,19 +386,30 @@ export default function MapTab() {
     });
 
     map.addLayer({
-      id: "snail-marker-core",
-      type: "circle",
+      id: "snail-marker-emoji",
+      type: "symbol",
       source: "snail-positions",
-      paint: {
-        "circle-radius": 8,
-        "circle-color": [
+      layout: {
+        "icon-image": [
           "case",
           ["==", ["get", "direction"], "outgoing"],
-          "#22C55E",
-          "#EF4444",
+          "user-snail",
+          "enemy-snail",
         ],
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#FFFFFF",
+        "icon-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3,
+          0.15,
+          8,
+          0.35,
+          14,
+          0.6,
+          18,
+          0.9,
+        ],
+        "icon-allow-overlap": true,
       },
     });
 
