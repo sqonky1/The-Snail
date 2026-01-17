@@ -356,6 +356,14 @@ export default function MapTab() {
       }
     });
 
+    map.loadImage("/avatar.webp", (error, image) => {
+      if (!error && image) {
+        if (!map.hasImage("avatar")) {
+          map.addImage("avatar", image, { pixelRatio: 2 });
+        }
+      }
+    });
+
     // Snail markers glow
     map.addLayer({
       id: "snail-marker-glow",
@@ -397,18 +405,15 @@ export default function MapTab() {
           "enemy-snail",
         ],
         "icon-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          3,
-          0.15,
-          8,
-          0.35,
-          14,
-          0.6,
-          18,
-          0.9,
-        ],
+         "interpolate",
+         ["linear"],
+         ["zoom"],
+         3, 0.05,  // Microscopic when zoomed out
+         14, 0.08, // Still very small when fairly close
+         22, 0.4   // Small even when fully zoomed in
+       ],
+        "icon-rotate": ["get", "bearing"],
+        "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,
       },
     });
@@ -427,13 +432,19 @@ export default function MapTab() {
 
     map.addLayer({
       id: "user-marker",
-      type: "circle",
+      type: "symbol",
       source: "user-position",
-      paint: {
-        "circle-radius": 12,
-        "circle-color": "#4285F4",
-        "circle-stroke-width": 3,
-        "circle-stroke-color": "#FFFFFF",
+      layout: {
+        "icon-image": "avatar",
+        "icon-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          3, 1,  // Microscopic when zoomed out
+          14, 1, // Still very small when fairly close
+          22, 0.5   // Small even when fully zoomed in
+        ],
+        "icon-allow-overlap": true,
       },
     });
   };
@@ -529,6 +540,21 @@ export default function MapTab() {
     const positionFeatures: GeoJSON.Feature[] = [];
     const snailPositionMap = new Map<string, Coordinates>();
 
+    // Calculate bearing between two coordinates (in degrees)
+    const calculateBearing = (from: Coordinates, to: Coordinates): number => {
+      const toRad = (deg: number) => (deg * Math.PI) / 180;
+      const toDeg = (rad: number) => (rad * 180) / Math.PI;
+      
+      const dLng = toRad(to.lng - from.lng);
+      const lat1 = toRad(from.lat);
+      const lat2 = toRad(to.lat);
+      
+      const y = Math.sin(dLng) * Math.cos(lat2);
+      const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+      
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    };
+
     const buildFeatures = (
       snailsToPlot: Snail[],
       direction: "incoming" | "outgoing",
@@ -541,9 +567,20 @@ export default function MapTab() {
           new Date(snail.arrival_time)
         );
 
+        // Calculate bearing from the snail's movement direction
+        let bearing = 0;
+        if (snailPos.futureTrail.length > 0) {
+          // Bearing points toward the next point in the path
+          bearing = calculateBearing(snailPos.currentPosition, snailPos.futureTrail[0]);
+        } else if (snailPos.pastTrail.length >= 2) {
+          // If no future trail, use the last segment of past trail
+          const lastIdx = snailPos.pastTrail.length - 1;
+          bearing = calculateBearing(snailPos.pastTrail[lastIdx - 1], snailPos.pastTrail[lastIdx]);
+        }
+
         positionFeatures.push({
           type: "Feature",
-          properties: { snailId: snail.id, direction },
+          properties: { snailId: snail.id, direction, bearing },
           geometry: {
             type: "Point",
             coordinates: [
