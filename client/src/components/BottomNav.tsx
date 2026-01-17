@@ -1,18 +1,20 @@
-import { Home, Shell, User } from "lucide-react";
-import { Link, useLocation } from "wouter";
+import { Bell, Home, Shell, User } from "lucide-react";
+import { Link } from "wouter";
+import { useNotifications } from "@/hooks/useNotifications";
 
-export type TabType = "map" | "deploy" | "profile";
+export type TabType = "map" | "deploy" | "notifications" | "profile";
 
 interface BottomNavProps {
   activeTab: TabType;
 }
 
 export default function BottomNav({ activeTab }: BottomNavProps) {
-  const [location] = useLocation();
+  const { unreadCount } = useNotifications();
 
   const tabs = [
     { id: "map" as TabType, icon: Home, label: "Home", path: "/" },
     { id: "deploy" as TabType, icon: Shell, label: "Snails", path: "/deploy" },
+    { id: "notifications" as TabType, icon: Bell, label: "Alerts", path: "/notifications" },
     { id: "profile" as TabType, icon: User, label: "Base", path: "/profile" },
   ];
 
@@ -22,6 +24,7 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
+          const showBadge = tab.id === "notifications" && unreadCount > 0;
 
           return (
             <Link
@@ -33,10 +36,15 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
                   : "text-white/60 hover:text-white"
               }`}
             >
-              <Icon className="w-6 h-6 mb-1" strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-xs font-gaegu tracking-wide">
-                {tab.label}
-              </span>
+              <div className="relative">
+                <Icon className="w-6 h-6 mb-1" strokeWidth={isActive ? 2.5 : 2} />
+                {showBadge && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs font-medium">{tab.label}</span>
             </Link>
           );
         })}

@@ -1,22 +1,13 @@
 import { supabase } from "@/lib/supabase";
-import type { Snail, SnailArrivalResult, InterceptResult } from "@/lib/database.types";
+import type { Snail } from "@/lib/database.types";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useCallback, useEffect, useState } from "react";
-
-export type EconomyEvent =
-  | { type: "arrival"; data: Exclude<SnailArrivalResult, { already_processed: true }> }
-  | { type: "intercept"; data: InterceptResult };
 
 export function useSnails() {
   const { user } = useAuth();
   const [snails, setSnails] = useState<Snail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [economyEvents, setEconomyEvents] = useState<EconomyEvent[]>([]);
-
-  const clearEconomyEvents = useCallback(() => {
-    setEconomyEvents([]);
-  }, []);
 
   const fetchSnails = useCallback(async () => {
     if (!user) {
@@ -27,19 +18,9 @@ export function useSnails() {
 
     setLoading(true);
 
-    // Sync expired snails and get economy events
+    // Sync expired snails (this creates notifications in the database)
     try {
-      const { data: syncResults } = await supabase.rpc("check_and_sync_snails");
-      if (syncResults && Array.isArray(syncResults)) {
-        const arrivals = syncResults
-          .filter((r): r is Exclude<SnailArrivalResult, { already_processed: true }> =>
-            !("already_processed" in r)
-          )
-          .map((data) => ({ type: "arrival" as const, data }));
-        if (arrivals.length > 0) {
-          setEconomyEvents((prev) => [...prev, ...arrivals]);
-        }
-      }
+      await supabase.rpc("check_and_sync_snails");
     } catch {
       // Ignore if function doesn't exist yet
     }
@@ -123,11 +104,8 @@ export function useSnails() {
       });
 
       if (error) throw error;
-
-      const result = data as InterceptResult;
-      setEconomyEvents((prev) => [...prev, { type: "intercept", data: result }]);
       await fetchSnails();
-      return result;
+      return data;
     },
     [user, fetchSnails]
   );
@@ -144,8 +122,6 @@ export function useSnails() {
     outgoingSnails,
     loading,
     error,
-    economyEvents,
-    clearEconomyEvents,
     deploySnail,
     interceptSnail,
     refresh: fetchSnails,

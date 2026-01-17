@@ -1,23 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
-import EconomyEventModal from "@/components/EconomyEventModal";
-import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
+import NotificationModal from "@/components/NotificationModal";
+import InterceptModal from "@/components/InterceptModal";
+import Joystick from "@/components/Joystick";
+import { Button } from "@/components/ui/button";
+import { Coordinates, getSnailPosition, isInInterceptRange } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useSnails, type EconomyEvent } from "@/hooks/useSnails";
+import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
 import { useFriendships } from "@/hooks/useFriendships";
+import { useNotifications } from "@/hooks/useNotifications";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
-import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
+import { INTERCEPT_RANGE_METERS, SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, outgoingSnails, economyEvents, clearEconomyEvents } =
-    useSnails();
+  const { incomingSnails, outgoingSnails, snails, refresh: refreshSnails, interceptSnail } = useSnails();
   const { profile, refresh: refreshProfile } = useProfile();
   const { friends } = useFriendships();
-  const [currentEventIndex, setCurrentEventIndex] = useState(0);
+  const { newNotification, clearNewNotification, markAsRead, refresh: refreshNotifications } = useNotifications();
 
   const friendHomeLocations = useMemo(() => {
     const map = new Map<string, unknown>();
@@ -31,6 +34,18 @@ export default function MapTab() {
     return map;
   }, [friends, user?.id]);
 
+  const friendUsernames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const friendship of friends) {
+      if (friendship.requester_id === user?.id) {
+        map.set(friendship.addressee_id, friendship.addressee_username);
+      } else {
+        map.set(friendship.requester_id, friendship.requester_username);
+      }
+    }
+    return map;
+  }, [friends, user?.id]);
+
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const initialCenter = useRef<[number, number] | undefined>(undefined);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -38,9 +53,70 @@ export default function MapTab() {
   const [pendingFocusSnailId, setPendingFocusSnailId] = useState<string | null>(
     () => sessionStorage.getItem(SNAIL_FOCUS_STORAGE_KEY)
   );
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const joystickVelocityRef = useRef({ x: 0, y: 0 });
+  const [tick, setTick] = useState(0);
+  const [interceptableSnail, setInterceptableSnail] = useState<Snail | null>(null);
+  const dismissedSnailsRef = useRef<Set<string>>(new Set());
+
+  // Timer to update snail positions every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((t) => t + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Check if any snail has arrived and trigger sync
+  useEffect(() => {
+    const now = new Date();
+    const hasArrivedSnail = snails.some(
+      (snail) => new Date(snail.arrival_time) <= now
+    );
+    if (hasArrivedSnail) {
+      refreshSnails();
+    }
+  }, [tick, snails, refreshSnails]);
+
+  // Check for interceptable snails
+  useEffect(() => {
+    if (!userPosition || interceptableSnail) return;
+
+    for (const snail of incomingSnails) {
+      if (dismissedSnailsRef.current.has(snail.id)) continue;
+
+      const snailPos = getSnailPosition(
+        snail.path_json,
+        new Date(snail.start_time),
+        new Date(snail.arrival_time)
+      );
+
+      if (isInInterceptRange(userPosition, snailPos.currentPosition, INTERCEPT_RANGE_METERS)) {
+        setInterceptableSnail(snail);
+        break;
+      }
+    }
+  }, [userPosition, incomingSnails, interceptableSnail, tick]);
+
+  const handleIntercept = async () => {
+    if (!interceptableSnail) return;
+    await interceptSnail(interceptableSnail.id);
+    await refreshProfile();
+    await refreshNotifications();
+    setInterceptableSnail(null);
+  };
+
+  const handleInterceptClose = () => {
+    if (interceptableSnail) {
+      dismissedSnailsRef.current.add(interceptableSnail.id);
+    }
+    setInterceptableSnail(null);
+  };
 
   // Initialize GPS tracking
   useEffect(() => {
+    if (isDemoMode) return;
+    
     if (!navigator.geolocation) {
       console.error("Geolocation is not supported by this browser.");
       alert(
@@ -89,7 +165,61 @@ export default function MapTab() {
     return () => {
       navigator.geolocation.clearWatch(id);
     };
-  }, []);
+  }, [isDemoMode]);
+
+  // Demo mode joystick movement
+  useEffect(() => {
+    if (!isDemoMode) return;
+
+    const MOVEMENT_SPEED_MS = 1000;
+    const LAT_PER_METER = 1 / 111320;
+    
+    let animationFrameId: number;
+    let lastTimestamp = performance.now();
+
+    const animate = (timestamp: number) => {
+      const deltaTime = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      const { x, y } = joystickVelocityRef.current;
+      
+      if (x !== 0 || y !== 0) {
+        setUserPosition((prev) => {
+          if (!prev) {
+            return { lat: 1.3521, lng: 103.8198 };
+          }
+
+          const metersPerSecond = MOVEMENT_SPEED_MS;
+          const latPerMeter = LAT_PER_METER;
+          const lngPerMeter = LAT_PER_METER / Math.cos((prev.lat * Math.PI) / 180);
+
+          const newLat = prev.lat + y * metersPerSecond * latPerMeter * deltaTime;
+          const newLng = prev.lng + x * metersPerSecond * lngPerMeter * deltaTime;
+
+          return { lat: newLat, lng: newLng };
+        });
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isDemoMode]);
+
+  const handleJoystickMove = (x: number, y: number) => {
+    joystickVelocityRef.current = { x, y: -y };
+  };
+
+  const toggleDemoMode = () => {
+    setIsDemoMode((prev) => !prev);
+    if (!isDemoMode && !userPosition) {
+      setUserPosition({ lat: 1.3521, lng: 103.8198 });
+    }
+  };
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -111,27 +241,59 @@ export default function MapTab() {
     mapRef.current = map;
     setMapLoaded(true);
 
-    map.addSource("user-position", {
+    map.addSource("home-base-zone", {
       type: "geojson",
       data: {
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "Point",
-          coordinates: [0, 0],
-        },
+        type: "FeatureCollection",
+        features: [],
       },
     });
 
     map.addLayer({
-      id: "user-marker",
-      type: "circle",
-      source: "user-position",
+      id: "home-base-fill",
+      type: "fill",
+      source: "home-base-zone",
       paint: {
-        "circle-radius": 12,
-        "circle-color": "#4285F4",
-        "circle-stroke-width": 3,
-        "circle-stroke-color": "#FFFFFF",
+        "fill-color": "#3B82F6",
+        "fill-opacity": 0.3,
+      },
+    });
+
+    map.addLayer({
+      id: "home-base-border",
+      type: "line",
+      source: "home-base-zone",
+      paint: {
+        "line-color": "#3B82F6",
+        "line-width": 1,
+      },
+    });
+
+    map.addSource("friend-home-zones", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    map.addLayer({
+      id: "friend-home-fill",
+      type: "fill",
+      source: "friend-home-zones",
+      paint: {
+        "fill-color": "#A855F7",
+        "fill-opacity": 0.3,
+      },
+    });
+
+    map.addLayer({
+      id: "friend-home-border",
+      type: "line",
+      source: "friend-home-zones",
+      paint: {
+        "line-color": "#A855F7",
+        "line-width": 1,
       },
     });
 
@@ -152,7 +314,7 @@ export default function MapTab() {
       filter: ["==", ["get", "trailType"], "past"],
       paint: {
         "line-color": ["get", "color"],
-        "line-width": 3,
+        "line-width": 4,
       },
     });
 
@@ -164,7 +326,7 @@ export default function MapTab() {
       filter: ["==", ["get", "trailType"], "future"],
       paint: {
         "line-color": ["get", "color"],
-        "line-width": 3,
+        "line-width": 2,
         "line-dasharray": [2, 2],
       },
     });
@@ -212,39 +374,27 @@ export default function MapTab() {
       },
     });
 
-    map.addSource("home-base-zone", {
+    map.addSource("user-position", {
       type: "geojson",
       data: {
-        type: "FeatureCollection",
-        features: [],
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "Point",
+          coordinates: [0, 0],
+        },
       },
     });
 
     map.addLayer({
-      id: "home-base-fill",
-      type: "fill",
-      source: "home-base-zone",
+      id: "user-marker",
+      type: "circle",
+      source: "user-position",
       paint: {
-        "fill-color": "#3B82F6",
-        "fill-opacity": 0.15,
-      },
-    });
-
-    map.addSource("friend-home-zones", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: [],
-      },
-    });
-
-    map.addLayer({
-      id: "friend-home-fill",
-      type: "fill",
-      source: "friend-home-zones",
-      paint: {
-        "fill-color": "#A855F7",
-        "fill-opacity": 0.15,
+        "circle-radius": 12,
+        "circle-color": "#4285F4",
+        "circle-stroke-width": 3,
+        "circle-stroke-color": "#FFFFFF",
       },
     });
   };
@@ -421,22 +571,15 @@ export default function MapTab() {
         sessionStorage.removeItem(SNAIL_FOCUS_STORAGE_KEY);
       }
     }
-  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded]);
+  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded, tick]);
 
   const SINGAPORE_CENTER: [number, number] = [103.8198, 1.3521];
   const SINGAPORE_OVERVIEW_ZOOM = 10.5;
 
-  const currentEvent: EconomyEvent | null =
-    economyEvents.length > 0 && currentEventIndex < economyEvents.length
-      ? economyEvents[currentEventIndex]
-      : null;
-
-  const handleEventClose = () => {
-    if (currentEventIndex < economyEvents.length - 1) {
-      setCurrentEventIndex((i) => i + 1);
-    } else {
-      clearEconomyEvents();
-      setCurrentEventIndex(0);
+  const handleNotificationClose = async () => {
+    if (newNotification) {
+      await markAsRead(newNotification.id);
+      clearNewNotification();
       refreshProfile();
     }
   };
@@ -451,13 +594,37 @@ export default function MapTab() {
       />
 
       {/* GPS status indicator */}
-      {!userPosition && (
+      {!userPosition && !isDemoMode && (
         <div className="absolute top-4 left-4 bg-card text-card-foreground px-4 py-2 rounded-lg shadow-md">
           <p className="text-sm">Acquiring GPS...</p>
         </div>
       )}
 
-      <EconomyEventModal event={currentEvent} onClose={handleEventClose} />
+      {/* Demo mode controls */}
+      <div className="absolute bottom-24 right-6 pointer-events-none flex flex-col items-end gap-2">
+        <Button
+          onClick={toggleDemoMode}
+          variant={isDemoMode ? "default" : "outline"}
+          size="icon"
+          className="pointer-events-auto h-8 w-8"
+        >
+          {isDemoMode ? "✕" : "◎"}
+        </Button>
+        {isDemoMode && (
+          <div className="pointer-events-auto">
+            <Joystick onMove={handleJoystickMove} size={100} />
+          </div>
+        )}
+      </div>
+
+      <NotificationModal notification={newNotification} onClose={handleNotificationClose} />
+
+      <InterceptModal
+        open={!!interceptableSnail}
+        senderUsername={interceptableSnail ? (friendUsernames.get(interceptableSnail.sender_id) ?? "Unknown") : ""}
+        onIntercept={handleIntercept}
+        onClose={handleInterceptClose}
+      />
 
       <BottomNav activeTab="map" />
     </div>

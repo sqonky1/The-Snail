@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import MapTab from "./pages/MapTab";
 import DeployTab from "./pages/DeployTab";
+import NotificationTab from "./pages/NotificationTab";
 import ProfileTab from "./pages/ProfileTab";
 import { useAuth } from "./_core/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -53,6 +54,9 @@ function Router() {
       </Route>
       <Route path="/deploy">
         <ProtectedRoute component={DeployTab} requireProfile />
+      </Route>
+      <Route path="/notifications">
+        <ProtectedRoute component={NotificationTab} requireProfile />
       </Route>
       <Route path="/profile">
         <ProtectedRoute component={ProfileTab} requireProfile />
