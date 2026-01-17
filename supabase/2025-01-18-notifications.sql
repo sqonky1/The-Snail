@@ -1,22 +1,32 @@
 -- Notifications table for tracking snail events
-CREATE TABLE public.notifications (
+CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
-  type TEXT NOT NULL, -- 'arrival_success', 'arrival_invaded', 'intercept'
+  type TEXT NOT NULL, -- 'arrival_success', 'arrival_invaded', 'intercept', 'snail_intercepted'
   data JSONB NOT NULL DEFAULT '{}',
   read BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX notifications_user_id_idx ON public.notifications(user_id);
-CREATE INDEX notifications_user_unread_idx ON public.notifications(user_id) WHERE read = false;
+CREATE INDEX IF NOT EXISTS notifications_user_id_idx ON public.notifications(user_id);
+CREATE INDEX IF NOT EXISTS notifications_user_unread_idx ON public.notifications(user_id) WHERE read = false;
+
+-- Enable real-time for notifications
+DO $$ 
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own notifications" ON public.notifications;
 CREATE POLICY "Users can view their own notifications"
 ON public.notifications FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own notifications" ON public.notifications;
 CREATE POLICY "Users can update their own notifications"
 ON public.notifications FOR UPDATE
 USING (auth.uid() = user_id);

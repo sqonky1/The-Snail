@@ -9,6 +9,7 @@ import { useState } from "react";
 interface NotificationData {
   target_username?: string;
   sender_username?: string;
+  interceptor_username?: string;
   salt_reward?: number;
   salt_penalty?: number;
   snail_reward?: number;
@@ -61,6 +62,16 @@ function getNotificationContent(notification: Notification): {
         resources: [
           { label: "🧂", value: data.salt_reward ?? 0, isPositive: true },
           { label: "🐌", value: data.snail_reward ?? 0, isPositive: true },
+        ],
+      };
+    case "snail_intercepted":
+      return {
+        title: "Snail Intercepted!",
+        description: `${data.interceptor_username} intercepted your snail at ${Math.round((data.progress ?? 0) * 100)}%`,
+        icon: "💔",
+        isPositive: false,
+        resources: [
+          { label: "🐌", value: 1, isPositive: false },
         ],
       };
     default:

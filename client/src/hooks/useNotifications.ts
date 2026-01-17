@@ -35,7 +35,23 @@ export function useNotifications() {
       return;
     }
 
-    setNotifications((data as Notification[]) ?? []);
+    const newData = (data as Notification[]) ?? [];
+    
+    // Check if there's a new unread notification at the top
+    if (newData.length > 0 && newData[0].read === false) {
+      const latestNotification = newData[0];
+      // Only set as new if it's not already in our list
+      setNotifications((prev) => {
+        const exists = prev.some((n) => n.id === latestNotification.id);
+        if (!exists) {
+          setNewNotification(latestNotification);
+        }
+        return newData;
+      });
+    } else {
+      setNotifications(newData);
+    }
+    
     setLoading(false);
   }, [user]);
 

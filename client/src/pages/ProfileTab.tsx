@@ -75,9 +75,9 @@ export default function ProfileTab() {
                   <span className="text-2xl">🛡️</span>
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">Snails thwarted</p>
+                  <p className="text-sm text-muted-foreground">Snails intercepted</p>
                   <p className="text-2xl font-bold text-foreground">
-                    {loading ? "..." : profile?.snails_thwarted ?? 0}
+                    {loading ? "..." : profile?.snails_intercepted ?? 0}
                   </p>
                 </div>
               </div>

@@ -8,7 +8,7 @@ export type Json =
 
 export type SnailStatus = "moving" | "intercepted" | "arrived";
 export type FriendshipStatus = "requested" | "friends";
-export type NotificationType = "arrival_success" | "arrival_invaded" | "intercept";
+export type NotificationType = "arrival_success" | "arrival_invaded" | "intercept" | "snail_intercepted";
 
 export interface Database {
   public: {
@@ -59,7 +59,7 @@ export interface Database {
           username: string;
           salt_balance: number;
           snail_inventory: number;
-          snails_thwarted: number;
+          snails_intercepted: number;
           successful_invasions: number;
           home_location: unknown | null;
           updated_at: string;
@@ -69,7 +69,7 @@ export interface Database {
           username: string;
           salt_balance?: number;
           snail_inventory?: number;
-           snails_thwarted?: number;
+           snails_intercepted?: number;
            successful_invasions?: number;
           home_location?: unknown | null;
           updated_at?: string;
@@ -79,7 +79,7 @@ export interface Database {
           username?: string;
           salt_balance?: number;
           snail_inventory?: number;
-           snails_thwarted?: number;
+           snails_intercepted?: number;
            successful_invasions?: number;
           home_location?: unknown | null;
           updated_at?: string;

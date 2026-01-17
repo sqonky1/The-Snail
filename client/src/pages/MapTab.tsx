@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
 import NotificationModal from "@/components/NotificationModal";
+import InterceptModal from "@/components/InterceptModal";
 import Joystick from "@/components/Joystick";
 import { Button } from "@/components/ui/button";
-import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
+import { Coordinates, getSnailPosition, isInInterceptRange } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
@@ -12,14 +13,14 @@ import { useFriendships } from "@/hooks/useFriendships";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
-import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
+import { INTERCEPT_RANGE_METERS, SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, outgoingSnails, snails, refresh: refreshSnails } = useSnails();
+  const { incomingSnails, outgoingSnails, snails, refresh: refreshSnails, interceptSnail } = useSnails();
   const { profile, refresh: refreshProfile } = useProfile();
   const { friends } = useFriendships();
-  const { newNotification, clearNewNotification, markAsRead } = useNotifications();
+  const { newNotification, clearNewNotification, markAsRead, refresh: refreshNotifications } = useNotifications();
 
   const friendHomeLocations = useMemo(() => {
     const map = new Map<string, unknown>();
@@ -28,6 +29,18 @@ export default function MapTab() {
         map.set(friendship.addressee_id, friendship.addressee_home_location);
       } else {
         map.set(friendship.requester_id, friendship.requester_home_location);
+      }
+    }
+    return map;
+  }, [friends, user?.id]);
+
+  const friendUsernames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const friendship of friends) {
+      if (friendship.requester_id === user?.id) {
+        map.set(friendship.addressee_id, friendship.addressee_username);
+      } else {
+        map.set(friendship.requester_id, friendship.requester_username);
       }
     }
     return map;
@@ -43,6 +56,8 @@ export default function MapTab() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const joystickVelocityRef = useRef({ x: 0, y: 0 });
   const [tick, setTick] = useState(0);
+  const [interceptableSnail, setInterceptableSnail] = useState<Snail | null>(null);
+  const dismissedSnailsRef = useRef<Set<string>>(new Set());
 
   // Timer to update snail positions every second
   useEffect(() => {
@@ -62,6 +77,41 @@ export default function MapTab() {
       refreshSnails();
     }
   }, [tick, snails, refreshSnails]);
+
+  // Check for interceptable snails
+  useEffect(() => {
+    if (!userPosition || interceptableSnail) return;
+
+    for (const snail of incomingSnails) {
+      if (dismissedSnailsRef.current.has(snail.id)) continue;
+
+      const snailPos = getSnailPosition(
+        snail.path_json,
+        new Date(snail.start_time),
+        new Date(snail.arrival_time)
+      );
+
+      if (isInInterceptRange(userPosition, snailPos.currentPosition, INTERCEPT_RANGE_METERS)) {
+        setInterceptableSnail(snail);
+        break;
+      }
+    }
+  }, [userPosition, incomingSnails, interceptableSnail, tick]);
+
+  const handleIntercept = async () => {
+    if (!interceptableSnail) return;
+    await interceptSnail(interceptableSnail.id);
+    await refreshProfile();
+    await refreshNotifications();
+    setInterceptableSnail(null);
+  };
+
+  const handleInterceptClose = () => {
+    if (interceptableSnail) {
+      dismissedSnailsRef.current.add(interceptableSnail.id);
+    }
+    setInterceptableSnail(null);
+  };
 
   // Initialize GPS tracking
   useEffect(() => {
@@ -568,6 +618,13 @@ export default function MapTab() {
       </div>
 
       <NotificationModal notification={newNotification} onClose={handleNotificationClose} />
+
+      <InterceptModal
+        open={!!interceptableSnail}
+        senderUsername={interceptableSnail ? (friendUsernames.get(interceptableSnail.sender_id) ?? "Unknown") : ""}
+        onIntercept={handleIntercept}
+        onClose={handleInterceptClose}
+      />
 
       <BottomNav activeTab="map" />
     </div>

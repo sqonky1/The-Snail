@@ -11,6 +11,7 @@ import type { Notification, NotificationType } from "@/lib/database.types";
 interface NotificationData {
   target_username?: string;
   sender_username?: string;
+  interceptor_username?: string;
   salt_reward?: number;
   salt_penalty?: number;
   snail_reward?: number;
@@ -134,6 +135,41 @@ export default function NotificationModal({
               </div>
               <span className="text-xl font-bold text-green-600">
                 +{data.salt_reward}
+              </span>
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Intercepted at {Math.round((data.progress ?? 0) * 100)}% progress
+            </p>
+          </div>
+          <Button onClick={onClose} className="w-full">
+            Continue
+          </Button>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (type === "snail_intercepted") {
+    return (
+      <Dialog open onOpenChange={() => onClose()}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="text-2xl">💔</span>
+              Snail Intercepted!
+            </DialogTitle>
+            <DialogDescription>
+              @{data.interceptor_username} intercepted your snail before it reached their base.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🐌</span>
+                <span className="font-medium">Snail Lost</span>
+              </div>
+              <span className="text-xl font-bold text-red-600">
+                -1
               </span>
             </div>
             <p className="text-center text-sm text-muted-foreground">
