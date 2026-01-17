@@ -702,7 +702,9 @@ export default function DeployTab() {
       <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-6">
         <GameWidget>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-foreground">Friends</h2>
+            <h2 className="font-gaegu font-bold text-3xl text-foreground">
+              Friends
+            </h2>
             <Dialog open={isAddFriendOpen} onOpenChange={setIsAddFriendOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -927,7 +929,7 @@ export default function DeployTab() {
 
         <GameWidget>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 className="font-gaegu font-bold text-3xl text-foreground">
               Your Snails
             </h2>
             <Button
@@ -1116,17 +1118,21 @@ export default function DeployTab() {
                   className="w-full text-left space-y-2 rounded-lg border border-border/70 p-3 transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">🐌</span>
-                      <span className="font-medium text-foreground">
-                        To {snail.target_username}
-                      </span>
-                    </div>
+                          <div className="flex items-center gap-2">
+                            <img
+                              src="/snail-avatar.svg"
+                              alt=""
+                              className="h-10 w-10 rounded-full bg-white/70 p-1 shadow"
+                            />
+                            <span className="font-medium text-foreground">
+                              To {snail.target_username}
+                            </span>
+                          </div>
                     <span className="text-sm text-muted-foreground">
                       {formatRemainingTime(snail.remainingHours)}
                     </span>
                   </div>
-                  <Progress value={snail.progress} className="h-2" />
+                    <Progress value={snail.progress} className="h-3" />
                 </button>
               ))}
             </div>
@@ -1135,7 +1141,7 @@ export default function DeployTab() {
 
         <GameWidget>
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-foreground">
+            <h2 className="font-gaegu font-bold text-3xl text-foreground">
               Snails incoming
             </h2>
           </div>
@@ -1157,17 +1163,21 @@ export default function DeployTab() {
                   className="w-full text-left space-y-2 rounded-lg border border-border/70 p-3 transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">🚨</span>
-                      <span className="font-medium text-foreground">
-                        From {snail.sender_username}
-                      </span>
-                    </div>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src="/snail-avatar.svg"
+                          alt=""
+                          className="h-10 w-10 rounded-full bg-white/70 p-1 shadow ring-2 ring-[var(--racing-red)]/50"
+                        />
+                        <span className="font-medium text-foreground">
+                          From {snail.sender_username}
+                        </span>
+                      </div>
                     <span className="text-sm text-muted-foreground">
                       {formatRemainingTime(snail.remainingHours)}
                     </span>
                   </div>
-                  <Progress value={snail.progress} className="h-2" />
+                    <Progress value={snail.progress} className="h-3" />
                 </button>
               ))}
             </div>

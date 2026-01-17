@@ -31,14 +31,15 @@ export default function ProfileTab() {
     "Player";
 
   return (
-    <div className="relative min-h-screen pb-20">
-      <div
-        className="absolute inset-0 bg-cover bg-center opacity-40"
-        style={{ backgroundImage: "url('/background.png')" }}
-        aria-hidden="true"
-      />
+    <div className="fixed inset-0 flex flex-col">
+      <div className="relative flex-1 overflow-y-auto pb-24">
+        <div
+          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40"
+          style={{ backgroundImage: "url('/background.png')" }}
+          aria-hidden="true"
+        />
 
-      <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-6">
+        <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-6">
         <GameWidget>
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20">
@@ -48,7 +49,9 @@ export default function ProfileTab() {
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-foreground">{displayName}</h1>
+              <h1 className="font-gaegu font-bold text-4xl text-foreground tracking-wide">
+                {displayName}
+              </h1>
               {user?.email && (
                 <p className="text-sm text-muted-foreground">{user.email}</p>
               )}
@@ -63,15 +66,19 @@ export default function ProfileTab() {
         <div className="space-y-3">
           <GameWidget>
             <div className="space-y-3">
-              <h2 className="text-xl font-semibold text-foreground">Achievements</h2>
-              <div className="grid grid-cols-2 gap-4">
+              <h2 className="font-gaegu font-bold text-3xl text-foreground">
+                Achievements
+              </h2>
+              <div className="grid grid-cols-2 gap-4 text-foreground">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                     <span className="text-2xl">🚩</span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Successful invasions</p>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-base text-muted-foreground font-semibold">
+                      Successful invasions
+                    </p>
+                    <p className="font-gaegu font-bold text-4xl">
                       {loading ? "..." : profile?.successful_invasions ?? 0}
                     </p>
                   </div>
@@ -81,8 +88,10 @@ export default function ProfileTab() {
                     <span className="text-2xl">🛡️</span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Snails thwarted</p>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-base text-muted-foreground font-semibold">
+                      Snails thwarted
+                    </p>
+                    <p className="font-gaegu font-bold text-4xl">
                       {loading ? "..." : profile?.snails_thwarted ?? 0}
                     </p>
                   </div>
@@ -96,15 +105,19 @@ export default function ProfileTab() {
         <div className="space-y-3">
           <GameWidget>
             <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground">Shop</h2>
+              <h2 className="font-gaegu font-bold text-3xl text-foreground">
+                Shop
+              </h2>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
                     <span className="text-2xl">🧂</span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Salt balance</p>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-sm text-muted-foreground font-semibold">
+                      Salt balance
+                    </p>
+                    <p className="font-gaegu font-bold text-4xl text-foreground">
                       {loading ? "..." : profile?.salt_balance ?? 0}
                     </p>
                   </div>
@@ -114,8 +127,10 @@ export default function ProfileTab() {
                     <span className="text-2xl">🐌</span>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Snails</p>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-sm text-muted-foreground font-semibold">
+                      Snails
+                    </p>
+                    <p className="font-gaegu font-bold text-4xl text-foreground">
                       {loading ? "..." : profile?.snail_inventory ?? 0}
                     </p>
                   </div>
@@ -134,7 +149,7 @@ export default function ProfileTab() {
         {/* Home Zone Preview */}
         <GameWidget>
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-semibold text-foreground">Home Zone</h2>
+            <h2 className="font-gaegu font-bold text-3xl text-foreground">Home Zone</h2>
             <Button
               onClick={handleEditHome}
               size="sm"
@@ -163,8 +178,8 @@ export default function ProfileTab() {
             </div>
           </div>
         </GameWidget>
+        </div>
       </div>
-
       <BottomNav activeTab="profile" />
     </div>
   );

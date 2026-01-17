@@ -8,7 +8,7 @@ interface GameWidgetProps {
 export default function GameWidget({ children, className = "" }: GameWidgetProps) {
   return (
     <div
-      className={`bg-card rounded-[10px] shadow-md border border-border p-4 ${className}`}
+      className={`rounded-[2.5rem_1.5rem_4rem_2rem] bg-white/80 border border-white/50 backdrop-blur-lg shadow-xl p-5 ${className}`}
     >
       {children}
     </div>
