@@ -1,7 +1,7 @@
 import BottomNav from "@/components/BottomNav";
 import GameWidget from "@/components/GameWidget";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MapPin, Edit, LogOut } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
@@ -36,6 +36,7 @@ export default function ProfileTab() {
         {/* User Profile Header */}
         <div className="flex items-center gap-4">
           <Avatar className="w-20 h-20">
+            <AvatarImage src="/snail-avatar.svg" alt="Snail avatar" />
             <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
               {displayName.charAt(0).toUpperCase()}
             </AvatarFallback>
@@ -51,47 +52,79 @@ export default function ProfileTab() {
           </Button>
         </div>
 
-        {/* Salt Balance Widget */}
-        <GameWidget>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
-                <span className="text-2xl">🧂</span>
+        {/* Achievements */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold text-foreground">Achievements</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <GameWidget className="h-full">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-2xl">🚩</span>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Successful invasions</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {loading ? "..." : profile?.successful_invasions ?? 0}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Salt Balance</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {loading ? "..." : profile?.salt_balance ?? 0}
-                </p>
+            </GameWidget>
+            <GameWidget className="h-full">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
+                  <span className="text-2xl">🛡️</span>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Snails thwarted</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {loading ? "..." : profile?.snails_thwarted ?? 0}
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">
-                Earned from intercepts
+            </GameWidget>
+          </div>
+        </div>
+
+        {/* Shop */}
+        <div className="space-y-3">
+          <h2 className="text-xl font-semibold text-foreground">Shop</h2>
+          <div className="grid grid-cols-2 gap-3">
+            <GameWidget className="h-full">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
+                  <span className="text-2xl">🧂</span>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Salt balance</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {loading ? "..." : profile?.salt_balance ?? 0}
+                  </p>
+                </div>
+              </div>
+            </GameWidget>
+            <GameWidget className="h-full">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                  <span className="text-2xl">🐌</span>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Snails</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {loading ? "..." : profile?.snail_inventory ?? 0}
+                  </p>
+                </div>
+              </div>
+            </GameWidget>
+          </div>
+          <GameWidget>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-foreground">Buy</p>
+              <p className="text-sm text-muted-foreground">
+                The salt economy shop is coming soon. Upgrades and boosts will appear here.
               </p>
             </div>
-          </div>
-        </GameWidget>
-
-        {/* Snails Inventory Widget */}
-        <GameWidget>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <span className="text-2xl">🐌</span>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Snails</p>
-                <p className="text-2xl font-bold text-foreground">
-                  {loading ? "..." : profile?.snail_inventory ?? 0}
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">Available to deploy</p>
-            </div>
-          </div>
-        </GameWidget>
+          </GameWidget>
+        </div>
 
         {/* Home Zone Preview */}
         <div>
