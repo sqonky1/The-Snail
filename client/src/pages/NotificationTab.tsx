@@ -107,41 +107,37 @@ function NotificationItem({
   const content = getNotificationContent(notification);
 
   return (
-    <GameWidget className="font-gaegu">
-      <div className="flex items-start gap-3">
-        <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-            content.isPositive ? "bg-green-100" : "bg-red-100"
-          }`}
-        >
-          <span className="text-xl">{content.icon}</span>
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-gaegu font-bold text-2xl text-foreground">{content.title}</p>
-          <p className="text-sm text-muted-foreground mt-0.5 font-gaegu">
-            {content.description}
+    <div className="rounded-lg border border-border/70 p-3">
+      <div className="space-y-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold leading-none flex-1" style={{ fontSize: '26px' }}>
+            {content.title}
           </p>
-        </div>
-        <div className="flex flex-col items-end shrink-0">
-          <span className="text-xs text-muted-foreground whitespace-nowrap font-gaegu">
+          <span className="text-xs text-muted-foreground whitespace-nowrap leading-none">
             {formatTimeAgo(notification.created_at)}
           </span>
-          <div className="flex flex-col items-end mt-1">
+        </div>
+        <p className="text-muted-foreground leading-snug" style={{ fontSize: '22px' }}>
+          {content.description}
+        </p>
+        {content.resources.length > 0 && (
+          <div className="flex items-center gap-3 pt-0.5">
             {content.resources.map((resource, idx) => (
               <span
                 key={idx}
-                className={`text-sm font-medium font-gaegu ${
+                className={`font-semibold leading-none ${
                   resource.isPositive ? "text-green-600" : "text-red-600"
                 }`}
+                style={{ fontSize: '22px' }}
               >
                 {resource.isPositive ? "+" : "-"}
                 {resource.value} {resource.label}
               </span>
             ))}
           </div>
-        </div>
+        )}
       </div>
-    </GameWidget>
+    </div>
   );
 }
 
@@ -160,36 +156,36 @@ export default function NotificationTab() {
 
   return (
     <div className="fixed inset-0 flex flex-col">
+      <div
+        className="fixed inset-0 bg-cover bg-center opacity-40 pointer-events-none"
+        style={{ backgroundImage: "url('/background.png')" }}
+        aria-hidden="true"
+      />
       <div className="relative flex-1 overflow-y-auto pb-24">
-        <div
-          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: "url('/background.png')" }}
-          aria-hidden="true"
-        />
-
-        <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-4 font-gaegu">
-          <h1 className="font-gaegu font-bold text-4xl text-foreground">
-            Notifications
-          </h1>
-
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No notifications yet</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {notifications.map((notification) => (
-                <NotificationItem
-                  key={notification.id}
-                  notification={notification}
-                />
-              ))}
-            </div>
-          )}
+        <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-6">
+          <GameWidget>
+            <h2 className="font-gaegu font-bold text-3xl text-foreground mb-4">
+              Notifications
+            </h2>
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No notifications yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {notifications.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                  />
+                ))}
+              </div>
+            )}
+          </GameWidget>
         </div>
       </div>
 

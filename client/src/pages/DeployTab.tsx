@@ -456,6 +456,8 @@ export default function DeployTab() {
       "deploy-drop-boundary"
     ) as mapboxgl.GeoJSONSource | undefined;
 
+    if (!friendHomeSource || !dropBoundarySource) return;
+
     if (selectedFriend?.homeLocation) {
       if (friendHomeSource) {
         friendHomeSource.setData({
@@ -619,7 +621,12 @@ export default function DeployTab() {
     try {
       await requestFriend(targetId);
       toast.success(`Friend request sent to ${username}`);
-      await searchProfiles(searchQuery);
+      
+      // Clear search and close dialog for cleaner UX
+      clearSearchResults();
+      setSearchQuery("");
+      setHasSearched(false);
+      setIsAddFriendOpen(false);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to send request";
@@ -695,7 +702,7 @@ export default function DeployTab() {
   return (
     <div className="relative min-h-screen pb-24">
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-40"
+        className="fixed inset-0 bg-cover bg-center opacity-40 pointer-events-none"
         style={{ backgroundImage: "url('/background.png')" }}
         aria-hidden="true"
       />

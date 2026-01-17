@@ -32,13 +32,12 @@ export default function ProfileTab() {
 
   return (
     <div className="fixed inset-0 flex flex-col">
+      <div
+        className="fixed inset-0 bg-cover bg-center opacity-40 pointer-events-none"
+        style={{ backgroundImage: "url('/background.png')" }}
+        aria-hidden="true"
+      />
       <div className="relative flex-1 overflow-y-auto pb-24">
-        <div
-          className="pointer-events-none absolute inset-0 bg-cover bg-center opacity-40"
-          style={{ backgroundImage: "url('/background.png')" }}
-          aria-hidden="true"
-        />
-
         <div className="relative z-10 container max-w-screen-sm mx-auto py-6 space-y-6">
         <GameWidget>
           <div className="flex flex-wrap items-center gap-4">
@@ -74,32 +73,28 @@ export default function ProfileTab() {
               <h2 className="font-gaegu font-bold text-3xl text-foreground">
                 Achievements
               </h2>
-              <div className="grid grid-cols-2 gap-4 text-foreground">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-2xl">🚩</span>
-                  </div>
-                  <div>
+              <div className="flex flex-col gap-4 text-foreground">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🚩</span>
                     <p className="text-base text-muted-foreground font-semibold">
                       Successful invasions
                     </p>
-                    <p className="font-gaegu font-bold text-4xl">
-                      {loading ? "..." : profile?.successful_invasions ?? 0}
-                    </p>
                   </div>
+                  <p className="font-gaegu font-bold text-4xl">
+                    {loading ? "..." : profile?.successful_invasions ?? 0}
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                    <span className="text-2xl">🛡️</span>
-                  </div>
-                  <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">🛡️</span>
                     <p className="text-base text-muted-foreground font-semibold">
-                      Snails thwarted
-                    </p>
-                    <p className="font-gaegu font-bold text-4xl">
-                      {loading ? "..." : profile?.snails_thwarted ?? 0}
+                      Snails intercepted
                     </p>
                   </div>
+                  <p className="font-gaegu font-bold text-4xl">
+                    {loading ? "..." : profile?.snails_intercepted ?? 0}
+                  </p>
                 </div>
               </div>
             </div>
@@ -110,32 +105,20 @@ export default function ProfileTab() {
         <div className="space-y-3">
           <GameWidget>
             <div className="space-y-4">
-              <h2 className="font-gaegu font-bold text-3xl text-foreground">
-                Shop
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center">
-                    <span className="text-2xl">🧂</span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground font-semibold">
-                      Salt balance
-                    </p>
-                    <p className="font-gaegu font-bold text-4xl text-foreground">
+              <div className="flex items-center justify-between">
+                <h2 className="font-gaegu font-bold text-3xl text-foreground">
+                  Shop
+                </h2>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: '22px' }}>🧂</span>
+                    <p className="font-gaegu font-bold text-foreground" style={{ fontSize: '22px' }}>
                       {loading ? "..." : profile?.salt_balance ?? 0}
                     </p>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                    <span className="text-2xl">🐌</span>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground font-semibold">
-                      Snails
-                    </p>
-                    <p className="font-gaegu font-bold text-4xl text-foreground">
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontSize: '22px' }}>🐌</span>
+                    <p className="font-gaegu font-bold text-foreground" style={{ fontSize: '22px' }}>
                       {loading ? "..." : profile?.snail_inventory ?? 0}
                     </p>
                   </div>
