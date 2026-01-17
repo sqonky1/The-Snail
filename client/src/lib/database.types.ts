@@ -58,6 +58,8 @@ export interface Database {
           username: string;
           salt_balance: number;
           snail_inventory: number;
+          snails_thwarted: number;
+          successful_invasions: number;
           home_location: unknown | null;
           updated_at: string;
         };
@@ -66,6 +68,8 @@ export interface Database {
           username: string;
           salt_balance?: number;
           snail_inventory?: number;
+           snails_thwarted?: number;
+           successful_invasions?: number;
           home_location?: unknown | null;
           updated_at?: string;
         };
@@ -74,6 +78,8 @@ export interface Database {
           username?: string;
           salt_balance?: number;
           snail_inventory?: number;
+           snails_thwarted?: number;
+           successful_invasions?: number;
           home_location?: unknown | null;
           updated_at?: string;
         };
