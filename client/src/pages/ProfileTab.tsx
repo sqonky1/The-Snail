@@ -158,7 +158,7 @@ export default function ProfileTab() {
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">Buy Snails</p>
                   <p className="text-sm text-muted-foreground">
-                    Trade 100 🧂 for 1 🐌 to keep your offensive lineup stocked.
+                    Trade 100 🧂 for 1 🐌 for your offensive lineup.
                   </p>
                 </div>
                 <Button
@@ -166,7 +166,7 @@ export default function ProfileTab() {
                   disabled={purchaseLoading || !canAffordSnail || loading}
                   className="w-full bg-transparent hover:bg-[#78350F]/10 text-black font-semibold text-lg border border-[#78350F]"
                 >
-                  {purchaseLoading ? "Processing..." : "Buy 1 🐌 — 100 🧂"}
+                  {purchaseLoading ? "Processing..." : "Buy 1 🐌"}
                 </Button>
                 {!canAffordSnail && !loading && (
                   <p className="text-xs text-muted-foreground">
