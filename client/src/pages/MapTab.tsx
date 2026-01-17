@@ -392,15 +392,6 @@ export default function MapTab() {
       },
     });
 
-    // Flag markers source (start and end points)
-    map.addSource("snail-flags", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: [],
-      },
-    });
-
     map.loadImage("/user-snail.webp", (error, image) => {
       if (!error && image) {
         if (!map.hasImage("user-snail")) {
@@ -421,45 +412,6 @@ export default function MapTab() {
       if (!error && image) {
         if (!map.hasImage("avatar")) {
           map.addImage("avatar", image, { pixelRatio: 2 });
-        }
-      }
-    });
-
-    map.loadImage("/green-flag.webp", (error, image) => {
-      if (error) {
-        console.error("Error loading green-flag:", error);
-        return;
-      }
-      if (image) {
-        if (!map.hasImage("green-flag")) {
-          map.addImage("green-flag", image, { pixelRatio: 2 });
-          console.log("Loaded green-flag image");
-        }
-      }
-    });
-
-    map.loadImage("/red-flag.webp", (error, image) => {
-      if (error) {
-        console.error("Error loading red-flag:", error);
-        return;
-      }
-      if (image) {
-        if (!map.hasImage("red-flag")) {
-          map.addImage("red-flag", image, { pixelRatio: 2 });
-          console.log("Loaded red-flag image");
-        }
-      }
-    });
-
-    map.loadImage("/finish-flag.webp", (error, image) => {
-      if (error) {
-        console.error("Error loading finish-flag:", error);
-        return;
-      }
-      if (image) {
-        if (!map.hasImage("finish-flag")) {
-          map.addImage("finish-flag", image, { pixelRatio: 2 });
-          console.log("Loaded finish-flag image");
         }
       }
     });
@@ -515,26 +467,6 @@ export default function MapTab() {
         "icon-rotate": ["get", "bearing"],
         "icon-rotation-alignment": "map",
         "icon-allow-overlap": true,
-      },
-    });
-
-    // Flag markers layer
-    map.addLayer({
-      id: "flag-markers",
-      type: "symbol",
-      source: "snail-flags",
-      layout: {
-        "icon-image": ["get", "flagType"],
-        "icon-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          3, 1,
-          14, 1,
-          22, 1
-        ],
-        "icon-allow-overlap": true,
-        "icon-ignore-placement": true,
       },
     });
 
@@ -693,13 +625,11 @@ export default function MapTab() {
     const positionSource = map.getSource(
       "snail-positions"
     ) as mapboxgl.GeoJSONSource;
-    const flagSource = map.getSource("snail-flags") as mapboxgl.GeoJSONSource;
 
-    if (!trailSource || !positionSource || !flagSource) return;
+    if (!trailSource || !positionSource) return;
 
     const trailFeatures: GeoJSON.Feature[] = [];
     const positionFeatures: GeoJSON.Feature[] = [];
-    const flagFeatures: GeoJSON.Feature[] = [];
     const snailPositionMap = new Map<string, Coordinates>();
 
     // Calculate bearing between two coordinates (in degrees)
@@ -753,36 +683,6 @@ export default function MapTab() {
         });
         snailPositionMap.set(snail.id, snailPos.currentPosition);
 
-        // Add start flag (green for outgoing, red for incoming)
-        const startPoint = snail.path_json[0];
-        flagFeatures.push({
-          type: "Feature",
-          properties: { 
-            flagType: direction === "outgoing" ? "green-flag" : "red-flag",
-            snailId: snail.id
-          },
-          geometry: {
-            type: "Point",
-            coordinates: [startPoint.lng, startPoint.lat],
-          },
-        });
-
-        // Add finish flag at the end point (only for outgoing/friendly snails)
-        if (direction === "outgoing") {
-          const endPoint = snail.path_json[snail.path_json.length - 1];
-          flagFeatures.push({
-            type: "Feature",
-            properties: { 
-              flagType: "finish-flag",
-              snailId: snail.id
-            },
-            geometry: {
-              type: "Point",
-              coordinates: [endPoint.lng, endPoint.lat],
-            },
-          });
-        }
-
         if (snailPos.pastTrail.length >= 2) {
           trailFeatures.push({
             type: "Feature",
@@ -820,13 +720,6 @@ export default function MapTab() {
       type: "FeatureCollection",
       features: positionFeatures,
     });
-
-    flagSource.setData({
-      type: "FeatureCollection",
-      features: flagFeatures,
-    });
-
-    console.log("Flag features:", flagFeatures.length, flagFeatures);
 
     if (pendingFocusSnailId) {
       const coords = snailPositionMap.get(pendingFocusSnailId);
