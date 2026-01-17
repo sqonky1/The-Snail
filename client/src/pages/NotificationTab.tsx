@@ -4,7 +4,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useProfile } from "@/hooks/useProfile";
 import type { Notification, NotificationType } from "@/lib/database.types";
 import { Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useEffect } from "react";
 
 interface NotificationData {
   target_username?: string;
@@ -101,29 +101,13 @@ function formatTimeAgo(dateString: string): string {
 
 function NotificationItem({
   notification,
-  onMarkRead,
 }: {
   notification: Notification;
-  onMarkRead: (id: string) => Promise<void>;
 }) {
-  const [marking, setMarking] = useState(false);
   const content = getNotificationContent(notification);
 
-  const handleClick = async () => {
-    if (notification.read || marking) return;
-    setMarking(true);
-    try {
-      await onMarkRead(notification.id);
-    } finally {
-      setMarking(false);
-    }
-  };
-
   return (
-    <GameWidget
-      className={`${!notification.read ? "border-primary/50 bg-primary/5 cursor-pointer" : ""} ${marking ? "opacity-50" : ""}`}
-      onClick={handleClick}
-    >
+    <GameWidget>
       <div className="flex items-start gap-3">
         <div
           className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -162,13 +146,17 @@ function NotificationItem({
 }
 
 export default function NotificationTab() {
-  const { notifications, loading, markAsRead } = useNotifications();
+  const { notifications, loading, markAllAsRead } = useNotifications();
   const { refresh: refreshProfile } = useProfile();
 
-  const handleMarkRead = async (id: string) => {
-    await markAsRead(id);
-    await refreshProfile();
-  };
+  useEffect(() => {
+    if (!loading && notifications.length > 0) {
+      const hasUnread = notifications.some((n) => !n.read);
+      if (hasUnread) {
+        markAllAsRead().then(() => refreshProfile());
+      }
+    }
+  }, [loading, notifications, markAllAsRead, refreshProfile]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -189,7 +177,6 @@ export default function NotificationTab() {
               <NotificationItem
                 key={notification.id}
                 notification={notification}
-                onMarkRead={handleMarkRead}
               />
             ))}
           </div>

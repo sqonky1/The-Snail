@@ -97,6 +97,22 @@ export function useNotifications() {
     );
   }, []);
 
+  const markAllAsRead = useCallback(async () => {
+    const unreadNotifications = notifications.filter((n) => !n.read);
+    
+    if (unreadNotifications.length === 0) return;
+
+    await Promise.all(
+      unreadNotifications.map((n) =>
+        supabase.rpc("mark_notification_read", {
+          p_notification_id: n.id,
+        })
+      )
+    );
+
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, [notifications]);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return {
@@ -107,6 +123,7 @@ export function useNotifications() {
     loading,
     error,
     markAsRead,
+    markAllAsRead,
     refresh: fetchNotifications,
   };
 }
