@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
 import EconomyEventModal from "@/components/EconomyEventModal";
+import Joystick from "@/components/Joystick";
+import { Button } from "@/components/ui/button";
 import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails, type EconomyEvent } from "@/hooks/useSnails";
@@ -38,9 +40,13 @@ export default function MapTab() {
   const [pendingFocusSnailId, setPendingFocusSnailId] = useState<string | null>(
     () => sessionStorage.getItem(SNAIL_FOCUS_STORAGE_KEY)
   );
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const joystickVelocityRef = useRef({ x: 0, y: 0 });
 
   // Initialize GPS tracking
   useEffect(() => {
+    if (isDemoMode) return;
+    
     if (!navigator.geolocation) {
       console.error("Geolocation is not supported by this browser.");
       alert(
@@ -89,7 +95,61 @@ export default function MapTab() {
     return () => {
       navigator.geolocation.clearWatch(id);
     };
-  }, []);
+  }, [isDemoMode]);
+
+  // Demo mode joystick movement
+  useEffect(() => {
+    if (!isDemoMode) return;
+
+    const MOVEMENT_SPEED_MS = 1000;
+    const LAT_PER_METER = 1 / 111320;
+    
+    let animationFrameId: number;
+    let lastTimestamp = performance.now();
+
+    const animate = (timestamp: number) => {
+      const deltaTime = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      const { x, y } = joystickVelocityRef.current;
+      
+      if (x !== 0 || y !== 0) {
+        setUserPosition((prev) => {
+          if (!prev) {
+            return { lat: 1.3521, lng: 103.8198 };
+          }
+
+          const metersPerSecond = MOVEMENT_SPEED_MS;
+          const latPerMeter = LAT_PER_METER;
+          const lngPerMeter = LAT_PER_METER / Math.cos((prev.lat * Math.PI) / 180);
+
+          const newLat = prev.lat + y * metersPerSecond * latPerMeter * deltaTime;
+          const newLng = prev.lng + x * metersPerSecond * lngPerMeter * deltaTime;
+
+          return { lat: newLat, lng: newLng };
+        });
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isDemoMode]);
+
+  const handleJoystickMove = (x: number, y: number) => {
+    joystickVelocityRef.current = { x, y: -y };
+  };
+
+  const toggleDemoMode = () => {
+    setIsDemoMode((prev) => !prev);
+    if (!isDemoMode && !userPosition) {
+      setUserPosition({ lat: 1.3521, lng: 103.8198 });
+    }
+  };
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -471,11 +531,28 @@ export default function MapTab() {
       />
 
       {/* GPS status indicator */}
-      {!userPosition && (
+      {!userPosition && !isDemoMode && (
         <div className="absolute top-4 left-4 bg-card text-card-foreground px-4 py-2 rounded-lg shadow-md">
           <p className="text-sm">Acquiring GPS...</p>
         </div>
       )}
+
+      {/* Demo mode controls */}
+      <div className="absolute bottom-24 right-6 pointer-events-none flex flex-col items-end gap-2">
+        <Button
+          onClick={toggleDemoMode}
+          variant={isDemoMode ? "default" : "outline"}
+          size="icon"
+          className="pointer-events-auto h-8 w-8"
+        >
+          {isDemoMode ? "✕" : "◎"}
+        </Button>
+        {isDemoMode && (
+          <div className="pointer-events-auto">
+            <Joystick onMove={handleJoystickMove} size={100} />
+          </div>
+        )}
+      </div>
 
       <EconomyEventModal event={currentEvent} onClose={handleEventClose} />
 

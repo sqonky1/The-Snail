@@ -35,6 +35,7 @@ export default function MapboxMap({
       center: center,
       zoom: zoom,
       attributionControl: false,
+      doubleClickZoom: false,
     });
 
     // Apply tactical monochromatic styling
@@ -85,9 +86,19 @@ export default function MapboxMap({
   // Update center when prop changes
   useEffect(() => {
     if (map.current && mapLoaded) {
-      map.current.setCenter(center);
+      const [lng, lat] = center;
+      const currentCenter = map.current.getCenter();
+      const distance = Math.sqrt(
+        Math.pow(currentCenter.lng - lng, 2) + 
+        Math.pow(currentCenter.lat - lat, 2)
+      );
+      
+      // Only update if significantly different (more than ~1km)
+      if (distance > 0.01) {
+        map.current.setCenter(center);
+      }
     }
-  }, [center, mapLoaded]);
+  }, [center[0], center[1], mapLoaded]);
 
   return (
     <div className={className}>
