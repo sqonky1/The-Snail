@@ -19,7 +19,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { useFriendships } from "@/hooks/useFriendships";
 import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
-import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
+import {
+  createCirclePolygon,
+  parseSupabasePoint,
+  projectPointToCircle,
+} from "@/lib/geo";
 import type { Coordinates } from "@shared/ghostMovement";
 import {
   calculateProgress,
@@ -32,12 +36,15 @@ import {
   HOME_ZONE_RADIUS_KM,
   MIN_DEPLOY_DISTANCE_METERS,
   SNAIL_TRAVEL_DURATION_HOURS,
+  SNAIL_FOCUS_EVENT,
+  SNAIL_FOCUS_STORAGE_KEY,
 } from "@shared/const";
 import { fetchWalkingRoute } from "@/lib/routing";
 import { Check, Loader2, Plus, X } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import type { FeatureCollection } from "geojson";
+import { useLocation } from "wouter";
 
 const emptyFeatureCollection = (): FeatureCollection => ({
   type: "FeatureCollection",
@@ -46,7 +53,7 @@ const emptyFeatureCollection = (): FeatureCollection => ({
 
 export default function DeployTab() {
   const { user } = useAuth();
-  const { outgoingSnails, loading, deploySnail } = useSnails();
+  const { outgoingSnails, incomingSnails, loading, deploySnail } = useSnails();
   const {
     friends,
     incomingRequests,
@@ -60,7 +67,7 @@ export default function DeployTab() {
     requestFriend,
     respondToRequest,
   } = useFriendships();
-  const { profile, useSnail } = useProfile();
+  const { profile, useSnail, addSnails } = useProfile();
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,6 +86,7 @@ export default function DeployTab() {
     null
   );
   const [routingPreview, setRoutingPreview] = useState(false);
+  const [restocking, setRestocking] = useState(false);
 
   const dropRequirementKm = MIN_DEPLOY_DISTANCE_METERS / 1000;
 
@@ -102,11 +110,31 @@ export default function DeployTab() {
     friends.length === 0 &&
     incomingRequests.length === 0 &&
     outgoingRequests.length === 0;
+  const [, navigate] = useLocation();
 
   const myHomeLocation = useMemo(
     () => parseSupabasePoint(profile?.home_location),
     [profile?.home_location]
   );
+
+  const friendUsernames = useMemo(() => {
+    const map = new Map<string, string>();
+    friends.forEach((friendship) => {
+      if (friendship.requester_id) {
+        map.set(
+          friendship.requester_id,
+          friendship.requester_username || "Mystery Player"
+        );
+      }
+      if (friendship.addressee_id) {
+        map.set(
+          friendship.addressee_id,
+          friendship.addressee_username || "Mystery Player"
+        );
+      }
+    });
+    return map;
+  }, [friends]);
 
   const getFriendUsername = (friendship: (typeof friends)[number]) => {
     if (friendship.requester_id === user?.id) {
@@ -114,6 +142,11 @@ export default function DeployTab() {
     }
     return friendship.requester_username || "Mystery Player";
   };
+
+  const getUsernameForProfile = useCallback(
+    (profileId: string) => friendUsernames.get(profileId) ?? "Mystery Player",
+    [friendUsernames]
+  );
 
   const hasSnailInventory = (profile?.snail_inventory ?? 0) > 0;
 
@@ -289,6 +322,25 @@ export default function DeployTab() {
       toast.error(message);
     } finally {
       setDeploying(false);
+    }
+  };
+
+  const handleRestockSnail = async () => {
+    if (!profile) {
+      toast.error("Profile not loaded yet.");
+      return;
+    }
+
+    setRestocking(true);
+    try {
+      await addSnails(1);
+      toast.success("Added a test snail to your inventory.");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to add a snail";
+      toast.error(message);
+    } finally {
+      setRestocking(false);
     }
   };
 
@@ -510,7 +562,7 @@ export default function DeployTab() {
   }, [deployMap, routePreview]);
 
   useEffect(() => {
-    if (!selectedTarget || !myHomeLocation) {
+    if (!selectedTarget || !selectedFriend?.homeLocation) {
       setRoutePreview(null);
       setRouteStats(null);
       setRoutingPreview(false);
@@ -520,10 +572,24 @@ export default function DeployTab() {
     let cancelled = false;
     setRoutingPreview(true);
 
-    fetchWalkingRoute(myHomeLocation, selectedTarget)
+    const landingPoint = projectPointToCircle(
+      selectedFriend.homeLocation,
+      selectedTarget
+    );
+
+    fetchWalkingRoute(selectedTarget, landingPoint)
       .then((route) => {
         if (cancelled) return;
-        setRoutePreview(route.coordinates);
+        const adjusted =
+          route.coordinates.length === 0
+            ? [selectedTarget, landingPoint]
+            : route.coordinates.map((coord, index, arr) => {
+                if (index === 0) return selectedTarget;
+                if (index === arr.length - 1) return landingPoint;
+                return coord;
+              });
+
+        setRoutePreview(adjusted);
         setRouteStats({ distanceMeters: route.distance });
       })
       .catch((error) => {
@@ -545,7 +611,7 @@ export default function DeployTab() {
     return () => {
       cancelled = true;
     };
-  }, [selectedTarget, myHomeLocation]);
+  }, [selectedTarget, selectedFriend?.homeLocation]);
 
   const handleSearchSubmit = async (
     event: FormEvent<HTMLFormElement>
@@ -601,8 +667,33 @@ export default function DeployTab() {
     }
   };
 
+  const focusSnailOnMap = useCallback(
+    (snailId: string) => {
+      sessionStorage.setItem(SNAIL_FOCUS_STORAGE_KEY, snailId);
+      window.dispatchEvent(
+        new CustomEvent(SNAIL_FOCUS_EVENT, { detail: snailId })
+      );
+      navigate("/");
+    },
+    [navigate]
+  );
+
   // Calculate progress and remaining time for each snail
-  const snailsWithProgress = outgoingSnails.map((snail) => {
+  const outgoingSnailsWithProgress = outgoingSnails.map((snail) => {
+    const startTime = new Date(snail.start_time);
+    const arrivalTime = new Date(snail.arrival_time);
+    const progress = calculateProgress(startTime, arrivalTime) * 100;
+    const remainingHours = getRemainingHours(arrivalTime);
+
+    return {
+      ...snail,
+      progress,
+      remainingHours,
+      target_username: getUsernameForProfile(snail.target_id),
+    };
+  });
+
+  const incomingSnailsWithCountdown = incomingSnails.map((snail) => {
     const startTime = new Date(snail.start_time);
     const arrivalTime = new Date(snail.arrival_time);
     const progress = calculateProgress(startTime, arrivalTime) * 100;
@@ -899,6 +990,24 @@ export default function DeployTab() {
                       {myHomeLocation ? "Ready" : "Not set"}
                     </span>
                   </div>
+                  <div className="flex justify-between items-center pt-2">
+                    <span className="text-xs text-muted-foreground">
+                      Need a test snail?
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={handleRestockSnail}
+                      disabled={restocking}
+                    >
+                      {restocking ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        "+1"
+                      )}
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
@@ -1028,20 +1137,30 @@ export default function DeployTab() {
               <p className="text-muted-foreground text-center py-4">
                 Loading...
               </p>
-            ) : snailsWithProgress.length === 0 ? (
+            ) : outgoingSnailsWithProgress.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">
                 No active snails. Deploy one to attack a friend!
               </p>
             ) : (
               <div className="space-y-4">
-                {snailsWithProgress.map((snail) => (
-                  <div key={snail.id} className="space-y-2">
+                {outgoingSnailsWithProgress.map((snail) => (
+                  <button
+                    key={snail.id}
+                    type="button"
+                    onClick={() => focusSnailOnMap(snail.id)}
+                    className="w-full text-left space-y-2 rounded-lg border border-border/70 p-3 transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">🐌</span>
-                        <span className="font-medium text-foreground">
-                          Target: {snail.target_id.slice(0, 8)}...
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-foreground">
+                            To {snail.target_username}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {snail.target_id.slice(0, 8)}...
+                          </span>
+                        </div>
                       </div>
                       <span className="text-sm text-muted-foreground">
                         {snail.remainingHours.toFixed(1)}h left
@@ -1053,7 +1172,56 @@ export default function DeployTab() {
                         {snail.progress.toFixed(1)}% complete
                       </p>
                     </div>
-                  </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </GameWidget>
+        </div>
+
+        {/* Incoming Snails Section */}
+        <div>
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-foreground">
+              Snails incoming
+            </h2>
+          </div>
+          <GameWidget>
+            {loading ? (
+              <p className="text-muted-foreground text-center py-4">
+                Loading...
+              </p>
+            ) : incomingSnailsWithCountdown.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                No one is approaching your base.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {incomingSnailsWithCountdown.map((snail) => (
+                  <button
+                    key={snail.id}
+                    type="button"
+                    onClick={() => focusSnailOnMap(snail.id)}
+                    className="w-full text-left space-y-2 rounded-lg border border-border/70 p-3 transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">🚨</span>
+                        <div>
+                          <p className="font-medium text-foreground">
+                            From {getUsernameForProfile(snail.sender_id)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Arrives in {snail.remainingHours.toFixed(1)}h
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-sm text-muted-foreground">
+                        {snail.progress.toFixed(1)}% complete
+                      </span>
+                    </div>
+                    <Progress value={snail.progress} className="h-2" />
+                  </button>
                 ))}
               </div>
             )}

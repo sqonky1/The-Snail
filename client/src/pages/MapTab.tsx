@@ -1,30 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
-import { Button } from "@/components/ui/button";
-import {
-  Coordinates,
-  getSnailPosition,
-  isInInterceptRange,
-} from "@shared/ghostMovement";
+import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
 import type { Snail } from "@/lib/database.types";
 import { createCirclePolygon, parseSupabasePoint } from "@/lib/geo";
+import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, interceptSnail } = useSnails();
-  const { profile, addSalt } = useProfile();
+  const { incomingSnails, outgoingSnails } = useSnails();
+  const { profile } = useProfile();
 
   const mapRef = useRef<mapboxgl.Map | null>(null);
+  const initialCenter = useRef<[number, number] | undefined>(undefined);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [userPosition, setUserPosition] = useState<Coordinates | null>(null);
-  const [captureTarget, setCaptureTarget] = useState<{
-    snail: Snail;
-    position: Coordinates;
-  } | null>(null);
+  const [pendingFocusSnailId, setPendingFocusSnailId] = useState<string | null>(
+    () => sessionStorage.getItem(SNAIL_FOCUS_STORAGE_KEY)
+  );
 
   // Initialize GPS tracking
   useEffect(() => {
@@ -75,6 +71,20 @@ export default function MapTab() {
 
     return () => {
       navigator.geolocation.clearWatch(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<string | null>).detail;
+      if (typeof detail === "string" && detail) {
+        setPendingFocusSnailId(detail);
+      }
+    };
+
+    window.addEventListener(SNAIL_FOCUS_EVENT, handler as EventListener);
+    return () => {
+      window.removeEventListener(SNAIL_FOCUS_EVENT, handler as EventListener);
     };
   }, []);
 
@@ -153,12 +163,33 @@ export default function MapTab() {
 
     // Snail markers
     map.addLayer({
-      id: "snail-markers",
+      id: "snail-marker-glow",
+      type: "circle",
+      source: "snail-positions",
+      paint: {
+        "circle-radius": 18,
+        "circle-color": [
+          "case",
+          ["==", ["get", "direction"], "outgoing"],
+          "rgba(34, 197, 94, 0.35)",
+          "rgba(248, 113, 113, 0.35)",
+        ],
+        "circle-blur": 0.8,
+      },
+    });
+
+    map.addLayer({
+      id: "snail-marker-core",
       type: "circle",
       source: "snail-positions",
       paint: {
         "circle-radius": 8,
-        "circle-color": "#F97316", // Safety Orange for incoming snails
+        "circle-color": [
+          "case",
+          ["==", ["get", "direction"], "outgoing"],
+          "#22C55E",
+          "#EF4444",
+        ],
         "circle-stroke-width": 2,
         "circle-stroke-color": "#FFFFFF",
       },
@@ -195,7 +226,10 @@ export default function MapTab() {
   };
 
   // Update user position on map
-  const updateUserPositionOnMap = (map: mapboxgl.Map, position: Coordinates) => {
+  const updateUserPositionOnMap = (
+    map: mapboxgl.Map,
+    position: Coordinates
+  ) => {
     const source = map.getSource("user-position") as mapboxgl.GeoJSONSource;
     if (source) {
       source.setData({
@@ -207,7 +241,6 @@ export default function MapTab() {
         },
       });
     }
-    map.setCenter([position.lng, position.lat]);
   };
 
   useEffect(() => {
@@ -240,7 +273,7 @@ export default function MapTab() {
 
   // Update snail positions and check for intercept opportunities
   useEffect(() => {
-    if (!mapRef.current || !userPosition) return;
+    if (!mapRef.current) return;
 
     const map = mapRef.current;
     const trailSource = map.getSource("snail-trails") as mapboxgl.GeoJSONSource;
@@ -252,62 +285,60 @@ export default function MapTab() {
 
     const trailFeatures: GeoJSON.Feature[] = [];
     const positionFeatures: GeoJSON.Feature[] = [];
-    let nearestIntercept: { snail: Snail; position: Coordinates } | null = null;
-    let nearestDistance = Infinity;
+    const snailPositionMap = new Map<string, Coordinates>();
 
-    for (const snail of incomingSnails) {
-      const snailPos = getSnailPosition(
-        snail.path_json,
-        new Date(snail.start_time),
-        new Date(snail.arrival_time)
-      );
-
-      // Add snail position marker
-      positionFeatures.push({
-        type: "Feature",
-        properties: { snailId: snail.id },
-        geometry: {
-          type: "Point",
-          coordinates: [snailPos.currentPosition.lng, snailPos.currentPosition.lat],
-        },
-      });
-
-      // Add past trail
-      if (snailPos.pastTrail.length >= 2) {
-        trailFeatures.push({
-          type: "Feature",
-          properties: { trailType: "past", color: "#F97316" },
-          geometry: {
-            type: "LineString",
-            coordinates: snailPos.pastTrail.map((c) => [c.lng, c.lat]),
-          },
-        });
-      }
-
-      // Add future trail
-      if (snailPos.futureTrail.length >= 2) {
-        trailFeatures.push({
-          type: "Feature",
-          properties: { trailType: "future", color: "#F97316" },
-          geometry: {
-            type: "LineString",
-            coordinates: snailPos.futureTrail.map((c) => [c.lng, c.lat]),
-          },
-        });
-      }
-
-      // Check if within intercept range
-      if (isInInterceptRange(userPosition, snailPos.currentPosition, 50)) {
-        const distance = Math.sqrt(
-          Math.pow(userPosition.lat - snailPos.currentPosition.lat, 2) +
-            Math.pow(userPosition.lng - snailPos.currentPosition.lng, 2)
+    const buildFeatures = (
+      snailsToPlot: Snail[],
+      direction: "incoming" | "outgoing",
+      color: string
+    ) => {
+      for (const snail of snailsToPlot) {
+        const snailPos = getSnailPosition(
+          snail.path_json,
+          new Date(snail.start_time),
+          new Date(snail.arrival_time)
         );
-        if (distance < nearestDistance) {
-          nearestDistance = distance;
-          nearestIntercept = { snail, position: snailPos.currentPosition };
+
+        positionFeatures.push({
+          type: "Feature",
+          properties: { snailId: snail.id, direction },
+          geometry: {
+            type: "Point",
+            coordinates: [
+              snailPos.currentPosition.lng,
+              snailPos.currentPosition.lat,
+            ],
+          },
+        });
+        snailPositionMap.set(snail.id, snailPos.currentPosition);
+
+        if (snailPos.pastTrail.length >= 2) {
+          trailFeatures.push({
+            type: "Feature",
+            properties: { trailType: "past", color },
+            geometry: {
+              type: "LineString",
+              coordinates: snailPos.pastTrail.map((c) => [c.lng, c.lat]),
+            },
+          });
         }
+
+        if (snailPos.futureTrail.length >= 2) {
+          trailFeatures.push({
+            type: "Feature",
+            properties: { trailType: "future", color },
+            geometry: {
+              type: "LineString",
+              coordinates: snailPos.futureTrail.map((c) => [c.lng, c.lat]),
+            },
+          });
+        }
+
       }
-    }
+    };
+
+    buildFeatures(incomingSnails, "incoming", "#EF4444");
+    buildFeatures(outgoingSnails, "outgoing", "#22C55E");
 
     trailSource.setData({
       type: "FeatureCollection",
@@ -318,46 +349,40 @@ export default function MapTab() {
       type: "FeatureCollection",
       features: positionFeatures,
     });
-
-    setCaptureTarget(nearestIntercept);
-  }, [incomingSnails, userPosition]);
-
-  // Handle intercept button click
-  const handleIntercept = async () => {
-    if (!captureTarget) return;
-
-    try {
-      await interceptSnail(captureTarget.snail.id);
-      // Award salt for successful intercept
-      await addSalt(10);
-      setCaptureTarget(null);
-    } catch (error) {
-      console.error("Failed to intercept snail:", error);
+    if (pendingFocusSnailId) {
+      const coords = snailPositionMap.get(pendingFocusSnailId);
+      if (!coords) {
+        console.warn(
+          "Snail focus requested but coordinates missing",
+          pendingFocusSnailId,
+          Array.from(snailPositionMap.keys())
+        );
+      }
+      if (coords && mapRef.current) {
+        mapRef.current.easeTo({
+          center: [coords.lng, coords.lat],
+          zoom: 15,
+          duration: 1500,
+        });
+        setPendingFocusSnailId(null);
+        sessionStorage.removeItem(SNAIL_FOCUS_STORAGE_KEY);
+      }
     }
-  };
+  }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded]);
 
   return (
     <div className="relative w-full h-screen">
       <MapboxMap
         center={
-          userPosition ? [userPosition.lng, userPosition.lat] : undefined
+          initialCenter.current ??
+          (userPosition
+            ? [userPosition.lng, userPosition.lat]
+            : undefined)
         }
         zoom={15}
         onMapLoad={handleMapLoad}
         className="w-full h-full"
       />
-
-      {/* Intercept button (floating) */}
-      {captureTarget && (
-        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
-          <Button
-            onClick={handleIntercept}
-            className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 text-lg shadow-lg"
-          >
-            INTERCEPT
-          </Button>
-        </div>
-      )}
 
       {/* GPS status indicator */}
       {!userPosition && (

@@ -1,5 +1,7 @@
 import type { Feature, Polygon } from "geojson";
 import type { Coordinates } from "@shared/ghostMovement";
+import { HOME_ZONE_RADIUS_KM } from "@shared/const";
+import { haversineDistance } from "@shared/ghostMovement";
 
 const POINT_WKT_REGEX = /POINT\s*\(([-\d.]+)\s+([-\d.]+)\)/i;
 
@@ -119,4 +121,24 @@ export function generateLinearPath(
   }
 
   return result;
+}
+
+export function projectPointToCircle(
+  center: Coordinates,
+  target: Coordinates,
+  radiusMeters = HOME_ZONE_RADIUS_KM * 1000
+): Coordinates {
+  const distance = haversineDistance(center, target);
+  if (distance === 0) {
+    return {
+      lat: center.lat,
+      lng: center.lng + radiusMeters / 111320,
+    };
+  }
+
+  const ratio = radiusMeters / distance;
+  return {
+    lat: center.lat + (target.lat - center.lat) * ratio,
+    lng: center.lng + (target.lng - center.lng) * ratio,
+  };
 }

@@ -101,22 +101,9 @@ export function useSnails() {
     [user, fetchSnails]
   );
 
-  const interceptSnail = useCallback(
-    async (snailId: string) => {
-      if (!user) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from("snails")
-        .update({ status: "intercepted" } as never)
-        .eq("id", snailId)
-        .eq("target_id", user.id); // Can only intercept snails targeting you
-
-      if (error) throw error;
-      await fetchSnails();
-      return { success: true };
-    },
-    [user, fetchSnails]
-  );
+  const interceptSnail = useCallback(async () => {
+    throw new Error("Interception is temporarily disabled.");
+  }, []);
 
   // Get snails targeting the user (incoming threats)
   const incomingSnails = snails.filter((s) => s.target_id === user?.id);
