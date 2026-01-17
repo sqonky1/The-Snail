@@ -1,5 +1,3 @@
-import polyline from "@mapbox/polyline";
-
 export interface Coordinates {
   lat: number;
   lng: number;
@@ -14,29 +12,33 @@ export interface SnailPosition {
 }
 
 /**
- * Decode Google Encoded Polyline to array of coordinates
+ * Convert path_json [lng, lat][] to Coordinates[]
  */
-export function decodePolyline(encoded: string): Coordinates[] {
-  const decoded = polyline.decode(encoded);
-  return decoded.map(([lat, lng]: [number, number]) => ({ lat, lng }));
+export function pathJsonToCoordinates(pathJson: [number, number][]): Coordinates[] {
+  return pathJson.map(([lng, lat]) => ({ lat, lng }));
 }
 
 /**
- * Encode array of coordinates to Google Encoded Polyline
+ * Convert Coordinates[] to path_json [lng, lat][]
  */
-export function encodePolyline(coords: Coordinates[]): string {
-  const points: [number, number][] = coords.map((c) => [c.lat, c.lng]);
-  return polyline.encode(points);
+export function coordinatesToPathJson(coords: Coordinates[]): [number, number][] {
+  return coords.map((c) => [c.lng, c.lat]);
 }
 
 /**
  * Calculate progress of snail journey (0 to 1)
- * progress = (now - startTime) / 48h
+ * Based on start_time and arrival_time
  */
-export function calculateProgress(startTime: Date, now: Date = new Date()): number {
-  const JOURNEY_DURATION_MS = 48 * 60 * 60 * 1000; // 48 hours in milliseconds
+export function calculateProgress(
+  startTime: Date,
+  arrivalTime: Date,
+  now: Date = new Date()
+): number {
+  const totalDuration = arrivalTime.getTime() - startTime.getTime();
+  if (totalDuration <= 0) return 1;
+
   const elapsed = now.getTime() - startTime.getTime();
-  const progress = Math.min(Math.max(elapsed / JOURNEY_DURATION_MS, 0), 1);
+  const progress = Math.min(Math.max(elapsed / totalDuration, 0), 1);
   return progress;
 }
 
@@ -85,8 +87,12 @@ export function interpolatePosition(
 
       // Linear interpolation between segment points
       return {
-        lat: segmentStart.lat + (segmentEnd.lat - segmentStart.lat) * segmentProgress,
-        lng: segmentStart.lng + (segmentEnd.lng - segmentStart.lng) * segmentProgress,
+        lat:
+          segmentStart.lat +
+          (segmentEnd.lat - segmentStart.lat) * segmentProgress,
+        lng:
+          segmentStart.lng +
+          (segmentEnd.lng - segmentStart.lng) * segmentProgress,
       };
     }
   }
@@ -96,14 +102,16 @@ export function interpolatePosition(
 
 /**
  * Get snail position with past and future trails
+ * Uses path_json format [lng, lat][] and arrival_time
  */
 export function getSnailPosition(
-  encodedPolyline: string,
+  pathJson: [number, number][],
   startTime: Date,
+  arrivalTime: Date,
   now: Date = new Date()
 ): SnailPosition {
-  const path = decodePolyline(encodedPolyline);
-  const progress = calculateProgress(startTime, now);
+  const path = pathJsonToCoordinates(pathJson);
+  const progress = calculateProgress(startTime, arrivalTime, now);
   const currentPosition = interpolatePosition(path, progress);
 
   const distances = calculateCumulativeDistances(path);
@@ -140,7 +148,10 @@ export function getSnailPosition(
 /**
  * Haversine distance calculation between two coordinates (in meters)
  */
-export function haversineDistance(coord1: Coordinates, coord2: Coordinates): number {
+export function haversineDistance(
+  coord1: Coordinates,
+  coord2: Coordinates
+): number {
   const R = 6371000; // Earth's radius in meters
   const toRad = (deg: number) => (deg * Math.PI) / 180;
 
@@ -159,21 +170,45 @@ export function haversineDistance(coord1: Coordinates, coord2: Coordinates): num
 }
 
 /**
- * Check if a snail has breached (48h elapsed without capture)
+ * Check if a snail has arrived (journey complete)
  */
-export function hasBreached(startTime: Date, now: Date = new Date()): boolean {
-  const progress = calculateProgress(startTime, now);
-  return progress >= 1;
+export function hasArrived(
+  arrivalTime: Date,
+  now: Date = new Date()
+): boolean {
+  return now >= arrivalTime;
 }
 
 /**
- * Check if user is within capture range of a snail (<15m)
+ * Check if user is within intercept range of a snail
  */
-export function isInCaptureRange(
+export function isInInterceptRange(
   userPosition: Coordinates,
   snailPosition: Coordinates,
-  rangeMeters: number = 15
+  rangeMeters: number = 50
 ): boolean {
   const distance = haversineDistance(userPosition, snailPosition);
   return distance <= rangeMeters;
+}
+
+/**
+ * Get remaining time until arrival in hours
+ */
+export function getRemainingHours(
+  arrivalTime: Date,
+  now: Date = new Date()
+): number {
+  const remaining = arrivalTime.getTime() - now.getTime();
+  return Math.max(0, remaining / (1000 * 60 * 60));
+}
+
+/**
+ * Get elapsed time since start in hours
+ */
+export function getElapsedHours(
+  startTime: Date,
+  now: Date = new Date()
+): number {
+  const elapsed = now.getTime() - startTime.getTime();
+  return Math.max(0, elapsed / (1000 * 60 * 60));
 }
