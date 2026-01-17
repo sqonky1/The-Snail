@@ -1,52 +1,49 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import GameWidget from "@/components/GameWidget";
+import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import { useProfile } from "@/hooks/useProfile";
-import { useEffect, useState, FormEvent } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Redirect, useLocation } from "wouter";
 import { toast } from "sonner";
 
 type Coords = { lat: number; lng: number };
+
+const DEFAULT_CENTER: [number, number] = [103.8198, 1.3521];
 
 export default function SetupHomeBase() {
   const { user, loading: authLoading, logout } = useAuth();
   const { profile, createProfile, loading: profileLoading } = useProfile();
   const [, navigate] = useLocation();
 
-  const [username, setUsername] = useState<string>(
-    user?.user_metadata?.username ?? ""
-  );
   const [coords, setCoords] = useState<Coords | null>(null);
-  const [locError, setLocError] = useState<string | null>(null);
+  const [initialCenter, setInitialCenter] = useState<[number, number]>(DEFAULT_CENTER);
+  const [geolocating, setGeolocating] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    setUsername(
-      (prev: string) => prev || user.user_metadata?.username || ""
-    );
-  }, [user]);
+  const username = user?.user_metadata?.username ?? "";
 
   useEffect(() => {
     if (!user) return;
     if (!navigator.geolocation) {
-      setLocError("Geolocation is not supported in this browser.");
+      setGeolocating(false);
+      setCoords({ lat: DEFAULT_CENTER[1], lng: DEFAULT_CENTER[0] });
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        setCoords({
+        const userCoords = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
-        });
-        setLocError(null);
+        };
+        setInitialCenter([userCoords.lng, userCoords.lat]);
+        setCoords(userCoords);
+        setGeolocating(false);
       },
-      (error) => {
-        setLocError(
-          error.message || "Unable to retrieve your location right now."
-        );
+      () => {
+        setCoords({ lat: DEFAULT_CENTER[1], lng: DEFAULT_CENTER[0] });
+        setGeolocating(false);
       },
       {
         enableHighAccuracy: true,
@@ -61,7 +58,28 @@ export default function SetupHomeBase() {
     }
   }, [profile?.home_location, navigate]);
 
-  if (authLoading || profileLoading) {
+  const handleMapLoad = useCallback(
+    (loadedMap: mapboxgl.Map) => {
+      const center = loadedMap.getCenter();
+      const marker = new mapboxgl.Marker({
+        color: "#3B82F6",
+        draggable: true,
+      })
+        .setLngLat([center.lng, center.lat])
+        .addTo(loadedMap);
+
+      setCoords({ lat: center.lat, lng: center.lng });
+
+      marker.on("dragend", () => {
+        const lngLat = marker.getLngLat();
+        setCoords({ lat: lngLat.lat, lng: lngLat.lng });
+      });
+    },
+    []
+  );
+
+
+  if ((authLoading || profileLoading) && !submitting) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
         Loading...
@@ -77,27 +95,23 @@ export default function SetupHomeBase() {
     return <Redirect to="/" />;
   }
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const handleSubmit = async () => {
     if (!username.trim()) {
-      toast.error("Username is required");
+      toast.error("Username is required. Please sign up again.");
       return;
     }
     if (!coords) {
-      toast.error("Waiting for your location...");
+      toast.error("Please select a location on the map.");
       return;
     }
 
     setSubmitting(true);
     try {
       await createProfile(username.trim(), coords);
-      navigate("/");
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to create profile";
       toast.error(message);
-    } finally {
       setSubmitting(false);
     }
   };
@@ -126,48 +140,46 @@ export default function SetupHomeBase() {
             Set up your home base
           </h1>
           <p className="text-muted-foreground">
-            Choose a username and we&apos;ll anchor your base to your current
-            location.
+            Drag the marker to set your home base location.
           </p>
         </div>
 
         <GameWidget>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Username
-              </label>
-              <Input
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="snailmaster42"
-                disabled={submitting}
-              />
-            </div>
+          <div className="space-y-4">
             <div className="space-y-2">
               <p className="text-sm font-medium text-foreground">
                 Home base location
               </p>
-              {coords ? (
-                <div className="text-sm text-muted-foreground rounded-md border border-border/70 p-3">
-                  <p>Lat: {coords.lat.toFixed(5)}</p>
-                  <p>Lng: {coords.lng.toFixed(5)}</p>
-                </div>
-              ) : (
-                <div className="text-sm text-muted-foreground rounded-md border border-dashed border-border/70 p-3">
-                  {locError ?? "Fetching your location..."}
+              <div className="relative h-72 rounded-lg border border-border/70 overflow-hidden">
+                {geolocating ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    Detecting your location...
+                  </div>
+                ) : (
+                  <MapboxMap
+                    center={initialCenter}
+                    zoom={15}
+                    onMapLoad={handleMapLoad}
+                    className="h-full w-full"
+                  />
+                )}
+              </div>
+              {coords && (
+                <div className="text-xs text-muted-foreground text-center">
+                  {coords.lat.toFixed(5)}, {coords.lng.toFixed(5)}
                 </div>
               )}
             </div>
 
             <Button
-              type="submit"
+              type="button"
               className="w-full"
-              disabled={submitting || !coords}
+              disabled={submitting || !coords || geolocating}
+              onClick={handleSubmit}
             >
               {submitting ? "Saving..." : "Create Home Base"}
             </Button>
-          </form>
+          </div>
         </GameWidget>
       </div>
     </div>
