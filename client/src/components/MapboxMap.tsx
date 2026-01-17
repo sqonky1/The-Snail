@@ -62,6 +62,10 @@ export default function MapboxMap({
               map.current?.setPaintProperty(layer.id, "text-halo-width", 1);
             }
           }
+          if (layer['source-layer'] === 'water') {
+            map.current?.setPaintProperty(layer.id, "fill-color", "#e1e1e1"); // Your desired blue
+            map.current?.setPaintProperty(layer.id, "fill-opacity", 1);
+          }
         });
       }
 

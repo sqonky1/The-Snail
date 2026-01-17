@@ -370,16 +370,14 @@ export default function MapTab() {
     }
   }, [incomingSnails, outgoingSnails, pendingFocusSnailId, mapLoaded]);
 
+  const SINGAPORE_CENTER: [number, number] = [103.8198, 1.3521];
+  const SINGAPORE_OVERVIEW_ZOOM = 10.5;
+
   return (
     <div className="relative w-full h-screen">
       <MapboxMap
-        center={
-          initialCenter.current ??
-          (userPosition
-            ? [userPosition.lng, userPosition.lat]
-            : undefined)
-        }
-        zoom={15}
+        center={initialCenter.current ?? SINGAPORE_CENTER}
+        zoom={SINGAPORE_OVERVIEW_ZOOM}
         onMapLoad={handleMapLoad}
         className="w-full h-full"
       />
