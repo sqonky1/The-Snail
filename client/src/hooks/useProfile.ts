@@ -108,51 +108,6 @@ export function useProfile() {
     [user, fetchProfile]
   );
 
-  const addSalt = useCallback(
-    async (amount: number) => {
-      if (!user || !profile) throw new Error("Not authenticated or no profile");
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({ salt_balance: profile.salt_balance + amount } as never)
-        .eq("id", user.id);
-
-      if (error) throw error;
-      await fetchProfile();
-    },
-    [user, profile, fetchProfile]
-  );
-
-  const addSnails = useCallback(
-    async (count: number) => {
-      if (!user || !profile) throw new Error("Not authenticated or no profile");
-
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          snail_inventory: profile.snail_inventory + count,
-        } as never)
-        .eq("id", user.id);
-
-      if (error) throw error;
-      await fetchProfile();
-    },
-    [user, profile, fetchProfile]
-  );
-
-  const useSnail = useCallback(async () => {
-    if (!user || !profile) throw new Error("Not authenticated or no profile");
-    if (profile.snail_inventory <= 0) throw new Error("No snails available");
-
-    const { error } = await supabase
-      .from("profiles")
-      .update({ snail_inventory: profile.snail_inventory - 1 } as never)
-      .eq("id", user.id);
-
-    if (error) throw error;
-    await fetchProfile();
-  }, [user, profile, fetchProfile]);
-
   return {
     profile,
     loading,
@@ -160,9 +115,6 @@ export function useProfile() {
     createProfile,
     updateProfile,
     updateHomeLocation,
-    addSalt,
-    addSnails,
-    useSnail,
     refresh: fetchProfile,
   };
 }

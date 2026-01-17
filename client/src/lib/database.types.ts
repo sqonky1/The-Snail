@@ -124,7 +124,28 @@ export interface Database {
     Functions: {
       check_and_sync_snails: {
         Args: Record<string, never>;
-        Returns: undefined;
+        Returns: SnailArrivalResult[];
+      };
+      deploy_snail: {
+        Args: {
+          p_target_id: string;
+          p_friendship_id: string;
+          p_path_json: Json;
+          p_arrival_time: string;
+        };
+        Returns: string;
+      };
+      intercept_snail: {
+        Args: {
+          p_snail_id: string;
+        };
+        Returns: InterceptResult;
+      };
+      process_snail_arrival: {
+        Args: {
+          p_snail_id: string;
+        };
+        Returns: SnailArrivalResult;
       };
       get_friendships_with_profiles: {
         Args: Record<string, never>;
@@ -188,3 +209,23 @@ export type FriendshipInsert =
   Database["public"]["Tables"]["friendships"]["Insert"];
 export type FriendshipUpdate =
   Database["public"]["Tables"]["friendships"]["Update"];
+
+export type SnailArrivalResult = {
+  snail_id: string;
+  sender_id: string;
+  target_id: string;
+  sender_reward_salt: number;
+  sender_reward_snails: number;
+  target_penalty_salt: number;
+} | {
+  already_processed: true;
+};
+
+export type InterceptResult = {
+  snail_id: string;
+  interceptor_id: string;
+  sender_id: string;
+  progress: number;
+  salt_reward: number;
+  snail_reward: number;
+};

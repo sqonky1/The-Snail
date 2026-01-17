@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
 import BottomNav from "@/components/BottomNav";
+import EconomyEventModal from "@/components/EconomyEventModal";
 import { Coordinates, getSnailPosition } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useSnails } from "@/hooks/useSnails";
+import { useSnails, type EconomyEvent } from "@/hooks/useSnails";
 import { useProfile } from "@/hooks/useProfile";
 import { useFriendships } from "@/hooks/useFriendships";
 import type { Snail } from "@/lib/database.types";
@@ -12,9 +13,11 @@ import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, outgoingSnails } = useSnails();
-  const { profile } = useProfile();
+  const { incomingSnails, outgoingSnails, economyEvents, clearEconomyEvents } =
+    useSnails();
+  const { profile, refresh: refreshProfile } = useProfile();
   const { friends } = useFriendships();
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
 
   const friendHomeLocations = useMemo(() => {
     const map = new Map<string, unknown>();
@@ -423,6 +426,21 @@ export default function MapTab() {
   const SINGAPORE_CENTER: [number, number] = [103.8198, 1.3521];
   const SINGAPORE_OVERVIEW_ZOOM = 10.5;
 
+  const currentEvent: EconomyEvent | null =
+    economyEvents.length > 0 && currentEventIndex < economyEvents.length
+      ? economyEvents[currentEventIndex]
+      : null;
+
+  const handleEventClose = () => {
+    if (currentEventIndex < economyEvents.length - 1) {
+      setCurrentEventIndex((i) => i + 1);
+    } else {
+      clearEconomyEvents();
+      setCurrentEventIndex(0);
+      refreshProfile();
+    }
+  };
+
   return (
     <div className="relative w-full h-screen">
       <MapboxMap
@@ -438,6 +456,8 @@ export default function MapTab() {
           <p className="text-sm">Acquiring GPS...</p>
         </div>
       )}
+
+      <EconomyEventModal event={currentEvent} onClose={handleEventClose} />
 
       <BottomNav activeTab="map" />
     </div>

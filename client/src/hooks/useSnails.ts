@@ -1,13 +1,22 @@
 import { supabase } from "@/lib/supabase";
-import type { Snail, SnailStatus } from "@/lib/database.types";
+import type { Snail, SnailArrivalResult, InterceptResult } from "@/lib/database.types";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useCallback, useEffect, useState } from "react";
+
+export type EconomyEvent =
+  | { type: "arrival"; data: Exclude<SnailArrivalResult, { already_processed: true }> }
+  | { type: "intercept"; data: InterceptResult };
 
 export function useSnails() {
   const { user } = useAuth();
   const [snails, setSnails] = useState<Snail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [economyEvents, setEconomyEvents] = useState<EconomyEvent[]>([]);
+
+  const clearEconomyEvents = useCallback(() => {
+    setEconomyEvents([]);
+  }, []);
 
   const fetchSnails = useCallback(async () => {
     if (!user) {
@@ -18,11 +27,21 @@ export function useSnails() {
 
     setLoading(true);
 
-    // First, sync any expired snails
+    // Sync expired snails and get economy events
     try {
-      await supabase.rpc("check_and_sync_snails");
+      const { data: syncResults } = await supabase.rpc("check_and_sync_snails");
+      if (syncResults && Array.isArray(syncResults)) {
+        const arrivals = syncResults
+          .filter((r): r is Exclude<SnailArrivalResult, { already_processed: true }> =>
+            !("already_processed" in r)
+          )
+          .map((data) => ({ type: "arrival" as const, data }));
+        if (arrivals.length > 0) {
+          setEconomyEvents((prev) => [...prev, ...arrivals]);
+        }
+      }
     } catch {
-      // Ignore if function doesn't exist
+      // Ignore if function doesn't exist yet
     }
 
     // Get all snails where user is sender or target
@@ -81,31 +100,37 @@ export function useSnails() {
     ) => {
       if (!user) throw new Error("Not authenticated");
 
-      const snailData: Record<string, unknown> = {
-        sender_id: user.id,
-        target_id: targetId,
-        friendship_id: friendshipId,
-        path_json: pathJson,
-        arrival_time: arrivalTime.toISOString(),
-        status: "moving",
-      };
-
-      const { data, error } = await supabase
-        .from("snails")
-        .insert(snailData as never)
-        .select()
-        .single();
+      const { data, error } = await supabase.rpc("deploy_snail", {
+        p_target_id: targetId,
+        p_friendship_id: friendshipId,
+        p_path_json: pathJson,
+        p_arrival_time: arrivalTime.toISOString(),
+      });
 
       if (error) throw error;
       await fetchSnails();
-      return data as Snail;
+      return data as string;
     },
     [user, fetchSnails]
   );
 
-  const interceptSnail = useCallback(async () => {
-    throw new Error("Interception is temporarily disabled.");
-  }, []);
+  const interceptSnail = useCallback(
+    async (snailId: string) => {
+      if (!user) throw new Error("Not authenticated");
+
+      const { data, error } = await supabase.rpc("intercept_snail", {
+        p_snail_id: snailId,
+      });
+
+      if (error) throw error;
+
+      const result = data as InterceptResult;
+      setEconomyEvents((prev) => [...prev, { type: "intercept", data: result }]);
+      await fetchSnails();
+      return result;
+    },
+    [user, fetchSnails]
+  );
 
   // Get snails targeting the user (incoming threats)
   const incomingSnails = snails.filter((s) => s.target_id === user?.id);
@@ -119,6 +144,8 @@ export function useSnails() {
     outgoingSnails,
     loading,
     error,
+    economyEvents,
+    clearEconomyEvents,
     deploySnail,
     interceptSnail,
     refresh: fetchSnails,

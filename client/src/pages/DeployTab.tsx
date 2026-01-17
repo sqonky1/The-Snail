@@ -67,7 +67,7 @@ export default function DeployTab() {
     requestFriend,
     respondToRequest,
   } = useFriendships();
-  const { profile, useSnail, addSnails } = useProfile();
+  const { profile } = useProfile();
 
   const [isAddFriendOpen, setIsAddFriendOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,7 +86,6 @@ export default function DeployTab() {
     null
   );
   const [routingPreview, setRoutingPreview] = useState(false);
-  const [restocking, setRestocking] = useState(false);
 
   const dropRequirementKm = MIN_DEPLOY_DISTANCE_METERS / 1000;
 
@@ -313,7 +312,6 @@ export default function DeployTab() {
         pathJson,
         arrivalTime
       );
-      await useSnail();
       toast.success(`Snail deployed to ${selectedFriend.username}`);
       setIsDeployDialogOpen(false);
     } catch (error) {
@@ -322,25 +320,6 @@ export default function DeployTab() {
       toast.error(message);
     } finally {
       setDeploying(false);
-    }
-  };
-
-  const handleRestockSnail = async () => {
-    if (!profile) {
-      toast.error("Profile not loaded yet.");
-      return;
-    }
-
-    setRestocking(true);
-    try {
-      await addSnails(1);
-      toast.success("Added a test snail to your inventory.");
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to add a snail";
-      toast.error(message);
-    } finally {
-      setRestocking(false);
     }
   };
 
@@ -996,24 +975,6 @@ export default function DeployTab() {
                     <span className="font-semibold">
                       {myHomeLocation ? "Ready" : "Not set"}
                     </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-xs text-muted-foreground">
-                      Need a test snail?
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2"
-                      onClick={handleRestockSnail}
-                      disabled={restocking}
-                    >
-                      {restocking ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        "+1"
-                      )}
-                    </Button>
                   </div>
                 </div>
 
