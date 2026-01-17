@@ -678,7 +678,13 @@ export default function DeployTab() {
     [navigate]
   );
 
-  // Calculate progress and remaining time for each snail
+  const formatRemainingTime = (remainingHours: number) => {
+    const totalMinutes = Math.max(0, Math.floor(remainingHours * 60));
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours}h ${minutes}m left`;
+  };
+
   const outgoingSnailsWithProgress = outgoingSnails.map((snail) => {
     const startTime = new Date(snail.start_time);
     const arrivalTime = new Date(snail.arrival_time);
@@ -703,6 +709,7 @@ export default function DeployTab() {
       ...snail,
       progress,
       remainingHours,
+      sender_username: getUsernameForProfile(snail.sender_id),
     };
   });
 
@@ -1158,15 +1165,10 @@ export default function DeployTab() {
                         </span>
                       </div>
                       <span className="text-sm text-muted-foreground">
-                        {snail.remainingHours.toFixed(1)}h left
+                        {formatRemainingTime(snail.remainingHours)}
                       </span>
                     </div>
-                    <div className="space-y-1">
-                      <Progress value={snail.progress} className="h-2" />
-                      <p className="text-xs text-muted-foreground text-right">
-                        {snail.progress.toFixed(1)}% complete
-                      </p>
-                    </div>
+                    <Progress value={snail.progress} className="h-2" />
                   </button>
                 ))}
               </div>
@@ -1202,17 +1204,12 @@ export default function DeployTab() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">🚨</span>
-                        <div>
-                          <p className="font-medium text-foreground">
-                            From {getUsernameForProfile(snail.sender_id)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Arrives in {snail.remainingHours.toFixed(1)}h
-                          </p>
-                        </div>
+                        <span className="font-medium text-foreground">
+                          From {snail.sender_username}
+                        </span>
                       </div>
                       <span className="text-sm text-muted-foreground">
-                        {snail.progress.toFixed(1)}% complete
+                        {formatRemainingTime(snail.remainingHours)}
                       </span>
                     </div>
                     <Progress value={snail.progress} className="h-2" />
