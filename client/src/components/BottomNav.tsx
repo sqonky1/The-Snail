@@ -19,8 +19,8 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed left-0 right-0 bottom-0 z-50 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto mx-6 mb-2 flex w-full max-w-2xl items-center justify-around rounded-[3rem_1rem_4rem_2rem] border border-white/50 bg-white/70 px-6 py-2 backdrop-blur-xl shadow-2xl">
+    <nav className="fixed left-0 right-0 bottom-0 z-50 bg-card/95 border-t border-border rounded-t-2xl shadow-2xl backdrop-blur-sm">
+      <div className="flex w-full max-w-2xl mx-auto items-center justify-around px-4 py-1.5">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -30,28 +30,28 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
             <Link
               key={tab.id}
               href={tab.path}
-              className={`relative flex flex-col items-center gap-1.5 transition-all active:scale-95 ${
+              className={`relative flex flex-col items-center gap-0.5 transition-all active:scale-95 ${
                 isActive
-                  ? "text-[#78350F]"
-                  : "text-black/50 hover:text-black/70"
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               <div
-                className={`relative flex items-center justify-center rounded-full px-3 py-2 ${
-                  isActive ? "bg-[#78350F]/12" : "bg-transparent"
+                className={`relative flex items-center justify-center rounded-full px-2 py-1.5 ${
+                  isActive ? "bg-primary/10" : "bg-transparent"
                 }`}
               >
                 <Icon
-                  className="w-7 h-7"
+                  className="w-5 h-5"
                   strokeWidth={isActive ? 2.6 : 2.2}
                 />
                 {showBadge && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
               </div>
-              <span className="text-sm font-gaegu tracking-wide">
+              <span className="text-xs font-medium tracking-wide">
                 {tab.label}
               </span>
             </Link>

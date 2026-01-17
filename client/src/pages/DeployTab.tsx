@@ -693,7 +693,7 @@ export default function DeployTab() {
   });
 
   return (
-    <div className="relative min-h-screen pb-20">
+    <div className="relative min-h-screen pb-24">
       <div
         className="absolute inset-0 bg-cover bg-center opacity-40"
         style={{ backgroundImage: "url('/background.png')" }}

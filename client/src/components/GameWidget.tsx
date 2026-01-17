@@ -13,7 +13,7 @@ export default function GameWidget({
 }: GameWidgetProps) {
   return (
     <div
-      className={`rounded-[2.5rem_1.5rem_4rem_2rem] bg-white/80 border border-white/50 backdrop-blur-lg shadow-xl p-5 ${className}`}
+      className={`rounded-[2.5rem_1.5rem_4rem_2rem] bg-white/80 border border-white/50 backdrop-blur-lg shadow-xl p-5 opacity-95 ${className}`}
       onClick={onClick}
     >
       {children}
