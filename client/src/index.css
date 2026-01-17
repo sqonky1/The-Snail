@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Gaegu:wght@300;400;700&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -43,6 +44,8 @@
 }
 
 :root {
+  --snail-green: #49b883;
+  --snail-dark: #171320;
   /* The Snail Tactical Color Palette (OKLCH format) */
   --racing-red: oklch(0.62 0.22 27); /* #EF4444 - User/Loss */
   --safety-orange: oklch(0.70 0.19 45); /* #F97316 - Enemy Snail */
@@ -128,9 +131,16 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    font-size: 22px;
+  }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Gaegu', cursive;
+    line-height: 1.5;
+  }
+  .font-gaegu {
+    font-family: "Gaegu", cursive;
   }
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]),
