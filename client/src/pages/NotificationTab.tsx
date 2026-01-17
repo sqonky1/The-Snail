@@ -1,10 +1,9 @@
 import BottomNav from "@/components/BottomNav";
 import GameWidget from "@/components/GameWidget";
-import { Button } from "@/components/ui/button";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useProfile } from "@/hooks/useProfile";
 import type { Notification, NotificationType } from "@/lib/database.types";
-import { Check, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useState } from "react";
 
 interface NotificationData {
@@ -16,11 +15,18 @@ interface NotificationData {
   progress?: number;
 }
 
+interface ResourceChange {
+  label: string;
+  value: number;
+  isPositive: boolean;
+}
+
 function getNotificationContent(notification: Notification): {
   title: string;
   description: string;
   icon: string;
   isPositive: boolean;
+  resources: ResourceChange[];
 } {
   const data = notification.data as NotificationData;
 
@@ -28,23 +34,34 @@ function getNotificationContent(notification: Notification): {
     case "arrival_success":
       return {
         title: "Invasion Successful!",
-        description: `Your snail invaded @${data.target_username}'s base. +${data.salt_reward} salt, +${data.snail_reward} snail`,
+        description: `Your snail invaded ${data.target_username}'s base`,
         icon: "🎉",
         isPositive: true,
+        resources: [
+          { label: "🧂", value: data.salt_reward ?? 0, isPositive: true },
+          { label: "🐌", value: data.snail_reward ?? 0, isPositive: true },
+        ],
       };
     case "arrival_invaded":
       return {
         title: "Base Invaded!",
-        description: `@${data.sender_username}'s snail reached your base. -${data.salt_penalty} salt`,
+        description: `${data.sender_username}'s snail reached your base`,
         icon: "🚨",
         isPositive: false,
+        resources: [
+          { label: "🧂", value: data.salt_penalty ?? 0, isPositive: false },
+        ],
       };
     case "intercept":
       return {
         title: "Snail Intercepted!",
-        description: `You captured @${data.sender_username}'s snail at ${Math.round((data.progress ?? 0) * 100)}%. +${data.salt_reward} salt, +${data.snail_reward} snail`,
+        description: `You captured ${data.sender_username}'s snail at ${Math.round((data.progress ?? 0) * 100)}%`,
         icon: "🎯",
         isPositive: true,
+        resources: [
+          { label: "🧂", value: data.salt_reward ?? 0, isPositive: true },
+          { label: "🐌", value: data.snail_reward ?? 0, isPositive: true },
+        ],
       };
     default:
       return {
@@ -52,6 +69,7 @@ function getNotificationContent(notification: Notification): {
         description: "Something happened",
         icon: "📬",
         isPositive: true,
+        resources: [],
       };
   }
 }
@@ -80,7 +98,8 @@ function NotificationItem({
   const [marking, setMarking] = useState(false);
   const content = getNotificationContent(notification);
 
-  const handleMarkRead = async () => {
+  const handleClick = async () => {
+    if (notification.read || marking) return;
     setMarking(true);
     try {
       await onMarkRead(notification.id);
@@ -91,42 +110,41 @@ function NotificationItem({
 
   return (
     <GameWidget
-      className={`${!notification.read ? "border-primary/50 bg-primary/5" : ""}`}
+      className={`${!notification.read ? "border-primary/50 bg-primary/5 cursor-pointer" : ""} ${marking ? "opacity-50" : ""}`}
+      onClick={handleClick}
     >
       <div className="flex items-start gap-3">
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center ${
+          className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
             content.isPositive ? "bg-green-100" : "bg-red-100"
           }`}
         >
           <span className="text-xl">{content.icon}</span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-medium text-foreground">{content.title}</p>
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {formatTimeAgo(notification.created_at)}
-            </span>
-          </div>
+          <p className="font-medium text-foreground">{content.title}</p>
           <p className="text-sm text-muted-foreground mt-0.5">
             {content.description}
           </p>
         </div>
-        {!notification.read && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={handleMarkRead}
-            disabled={marking}
-          >
-            {marking ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Check className="h-4 w-4" />
-            )}
-          </Button>
-        )}
+        <div className="flex flex-col items-end shrink-0">
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {formatTimeAgo(notification.created_at)}
+          </span>
+          <div className="flex flex-col items-end mt-1">
+            {content.resources.map((resource, idx) => (
+              <span
+                key={idx}
+                className={`text-sm font-medium ${
+                  resource.isPositive ? "text-green-600" : "text-red-600"
+                }`}
+              >
+                {resource.isPositive ? "+" : "-"}
+                {resource.value} {resource.label}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </GameWidget>
   );

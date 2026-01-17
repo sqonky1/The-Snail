@@ -16,7 +16,7 @@ import { SNAIL_FOCUS_EVENT, SNAIL_FOCUS_STORAGE_KEY } from "@shared/const";
 
 export default function MapTab() {
   const { user } = useAuth();
-  const { incomingSnails, outgoingSnails } = useSnails();
+  const { incomingSnails, outgoingSnails, snails, refresh: refreshSnails } = useSnails();
   const { profile, refresh: refreshProfile } = useProfile();
   const { friends } = useFriendships();
   const { newNotification, clearNewNotification, markAsRead } = useNotifications();
@@ -51,6 +51,17 @@ export default function MapTab() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Check if any snail has arrived and trigger sync
+  useEffect(() => {
+    const now = new Date();
+    const hasArrivedSnail = snails.some(
+      (snail) => new Date(snail.arrival_time) <= now
+    );
+    if (hasArrivedSnail) {
+      refreshSnails();
+    }
+  }, [tick, snails, refreshSnails]);
 
   // Initialize GPS tracking
   useEffect(() => {
