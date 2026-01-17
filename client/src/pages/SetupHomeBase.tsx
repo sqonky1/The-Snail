@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import GameWidget from "@/components/GameWidget";
 import MapboxMap, { mapboxgl } from "@/components/MapboxMap";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useEffect, useState, useCallback } from "react";
 import { Redirect, useLocation } from "wouter";
 import { toast } from "sonner";

@@ -11,7 +11,7 @@ import GardenTab from "./pages/GardenTab";
 import NotificationTab from "./pages/NotificationTab";
 import ProfileTab from "./pages/ProfileTab";
 import { useAuth } from "./_core/hooks/useAuth";
-import { useProfile } from "@/hooks/useProfile";
+import { ProfileProvider, useProfile } from "@/contexts/ProfileContext";
 import SetupHomeBase from "@/pages/SetupHomeBase";
 
 function ProtectedRoute({
@@ -78,10 +78,12 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <ProfileProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ProfileProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

@@ -1,7 +1,7 @@
 import BottomNav from "@/components/BottomNav";
 import GameWidget from "@/components/GameWidget";
 import { useNotifications } from "@/hooks/useNotifications";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile } from "@/contexts/ProfileContext";
 import type { Notification, NotificationType } from "@/lib/database.types";
 import { Loader2 } from "lucide-react";
 import { useEffect } from "react";

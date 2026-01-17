@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useState } from "react";
 
 export default function ProfileTab() {

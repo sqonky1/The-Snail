@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Coordinates, getSnailPosition, isInInterceptRange } from "@shared/ghostMovement";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useSnails } from "@/hooks/useSnails";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useFriendships } from "@/hooks/useFriendships";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { Snail } from "@/lib/database.types";

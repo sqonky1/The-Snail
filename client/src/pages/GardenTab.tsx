@@ -12,7 +12,7 @@ import {
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useFriendships } from "@/hooks/useFriendships";
 import { useSnails } from "@/hooks/useSnails";
-import { useProfile } from "@/hooks/useProfile";
+import { useProfile } from "@/contexts/ProfileContext";
 import {
   createCirclePolygon,
   parseSupabasePoint,
