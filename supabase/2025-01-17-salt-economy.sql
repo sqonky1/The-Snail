@@ -183,6 +183,55 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.intercept_snail(UUID) TO authenticated;
 
+-- Purchase a snail using salt (100 salt -> +1 snail)
+CREATE OR REPLACE FUNCTION public.purchase_snail()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_user_id UUID := auth.uid();
+  v_cost INT := 100;
+  v_salt_balance INT;
+  v_snail_inventory INT;
+BEGIN
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  SELECT salt_balance, snail_inventory
+  INTO v_salt_balance, v_snail_inventory
+  FROM profiles
+  WHERE id = v_user_id
+  FOR UPDATE;
+
+  IF v_salt_balance IS NULL THEN
+    RAISE EXCEPTION 'Profile not found';
+  END IF;
+
+  IF v_salt_balance < v_cost THEN
+    RAISE EXCEPTION 'Insufficient salt';
+  END IF;
+
+  UPDATE profiles
+  SET salt_balance = salt_balance - v_cost,
+      snail_inventory = snail_inventory + 1
+  WHERE id = v_user_id
+  RETURNING salt_balance, snail_inventory
+  INTO v_salt_balance, v_snail_inventory;
+
+  RETURN jsonb_build_object(
+    'salt_balance', v_salt_balance,
+    'snail_inventory', v_snail_inventory,
+    'snails_purchased', 1,
+    'salt_spent', v_cost
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.purchase_snail() TO authenticated;
+
 -- Updated check_and_sync_snails to process economy on arrival
 -- Returns array of processed arrivals for UI notifications
 CREATE OR REPLACE FUNCTION public.check_and_sync_snails()

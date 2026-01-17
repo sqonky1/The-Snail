@@ -1,4 +1,4 @@
-import { Bell, Home, Shell, User } from "lucide-react";
+import { Bell, Map, Shell, User } from "lucide-react";
 import { Link } from "wouter";
 import { useNotifications } from "@/hooks/useNotifications";
 
@@ -12,10 +12,10 @@ export default function BottomNav({ activeTab }: BottomNavProps) {
   const { unreadCount } = useNotifications();
 
   const tabs = [
-    { id: "map" as TabType, icon: Home, label: "Home", path: "/" },
+    { id: "map" as TabType, icon: Map, label: "Map", path: "/" },
     { id: "deploy" as TabType, icon: Shell, label: "Snails", path: "/deploy" },
     { id: "notifications" as TabType, icon: Bell, label: "Alerts", path: "/notifications" },
-    { id: "profile" as TabType, icon: User, label: "Base", path: "/profile" },
+    { id: "profile" as TabType, icon: User, label: "Profile", path: "/profile" },
   ];
 
   return (

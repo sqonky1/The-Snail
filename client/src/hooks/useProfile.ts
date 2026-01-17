@@ -108,6 +108,31 @@ export function useProfile() {
     [user, fetchProfile]
   );
 
+  const purchaseSnail = useCallback(async () => {
+    if (!user) throw new Error("Not authenticated");
+
+    const { data, error } = await supabase.rpc("purchase_snail");
+    if (error) throw error;
+
+    setProfile((prev) =>
+      prev
+        ? {
+            ...prev,
+            salt_balance:
+              typeof data?.salt_balance === "number"
+                ? data.salt_balance
+                : prev.salt_balance,
+            snail_inventory:
+              typeof data?.snail_inventory === "number"
+                ? data.snail_inventory
+                : prev.snail_inventory,
+          }
+        : prev
+    );
+
+    return data;
+  }, [user]);
+
   return {
     profile,
     loading,
@@ -115,6 +140,7 @@ export function useProfile() {
     createProfile,
     updateProfile,
     updateHomeLocation,
+    purchaseSnail,
     refresh: fetchProfile,
   };
 }
