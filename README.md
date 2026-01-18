@@ -20,5 +20,6 @@ Snails takes days to travel to their end location, squirming along real walking 
 
 ## Links
 
-- **Live Demo**: [Check it out on Vercel](your-vercel-url-here)
-- **DevPost**: [More information](your-devpost-url-here)
+- **Live Demo**: [Check it out on Vercel](https://the-snail.vercel.app/)
+- **DevPost**: [More information](https://devpost.com/software/the-snail)
+- **Youtube**: [Demo Video](https://youtu.be/L9QLv0ALr60)
